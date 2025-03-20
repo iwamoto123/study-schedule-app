@@ -40,8 +40,11 @@ jobs:
       - name: Enable Firebase Experiments
         run: firebase experiments:enable webframeworks --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
 
-      - name: Firebase 認証チェック
-        run: firebase projects:list
+      - name: Debug Firebase Authentication
+        run: |
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
+          cat $GOOGLE_APPLICATION_CREDENTIALS
+          firebase projects:list
 
       - name: Deploy to Firebase Hosting
         run: firebase deploy --only hosting --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
