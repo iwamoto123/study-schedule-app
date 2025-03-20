@@ -39,4 +39,4 @@ jobs:
         run: firebase experiments:enable webframeworks --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
 
       - name: Deploy to Firebase Hosting
-        run: firebase deploy --only hosting --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
+        run: firebase deploy --only hosting --project=study-schedule-app
