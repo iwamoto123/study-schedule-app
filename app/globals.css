@@ -22,3 +22,12 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+
+@layer utilities {
+  .input-basic { @apply w-20 rounded-md border border-gray-300 px-2 py-1 text-sm; }
+  .card-base {
+    @apply rounded-lg bg-white ring-1 ring-sky-200 shadow-sm px-4 py-3;
+  }
+}
+
