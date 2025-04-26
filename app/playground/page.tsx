@@ -5,27 +5,30 @@
 -------------------------------------------------------------- */
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import InputSingle from '@/components/InputSingle';
 import StudyMaterialCard from '@/components/StudyMaterialCard';
-import type { UnitType } from '@/components/StudyMaterialCard';
-
-interface DummyItem {
-  id: string;
-  title: string;
-  unitType: UnitType;
-  planCount: number;
-}
+import { fetchTodoItems, TodoItem } from '../scripts/TodoItem';
 
 export default function Playground() {
   /* ---------- 単体テスト：InputSingle ---------- */
   const [single, setSingle] = useState(5);
 
   /* ---------- 複合テスト：StudyMaterialCard ---------- */
-  const dummyList: DummyItem[] = [
-    { id: '1', title: 'Vintage 英文法', unitType: 'pages',    planCount: 8 },
-    { id: '2', title: '青チャートⅠ+A', unitType: 'problems', planCount: 20 },
-  ];
+  // 画面に必要な状態を入れるための箱を用意する
+  const [todoItems, setTodoItems] = useState<Array<TodoItem>>([])
+
+  useEffect(() => {
+    const f = async () => {
+      try {
+        const fetchedTasks = await fetchTodoItems("demoUser", "20250426");
+        setTodoItems(fetchedTasks);
+      } catch (e) {
+        console.error("XXX e: ", e)
+      }
+    }
+    f();
+  }, []);
   const [doneMap, setDoneMap] = useState<Record<string, number>>({});
 
   const handleSave = ({ id, doneCount }: { id: string; doneCount: number }) =>
@@ -48,7 +51,7 @@ export default function Playground() {
       <section>
         <h2 className="mb-2 font-semibold">StudyMaterialCard</h2>
         <div className="space-y-3">
-          {dummyList.map((item) => (
+          {todoItems.map((item) => (
             <StudyMaterialCard
               key={item.id}
               {...item}
