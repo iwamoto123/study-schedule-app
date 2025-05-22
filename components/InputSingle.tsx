@@ -10,6 +10,7 @@ interface InputSingleProps {
   placeholder?: string;
   /** 追加の Tailwind クラスを渡したい場合 */
   className?: string;
+  readOnly?: boolean;  
 }
 
 export default function InputSingle({
@@ -17,12 +18,13 @@ export default function InputSingle({
   onChange,
   placeholder = '0',
   className = '',
+  readOnly = false,
 }: InputSingleProps) {
   return (
     <input
       type="number"
       min={0}
-      readOnly={!onChange}
+      readOnly={readOnly || !onChange}
       value={value === 0 && onChange ? '' : value}
       placeholder={placeholder}
       onChange={(e) => onChange?.(Number(e.target.value))}

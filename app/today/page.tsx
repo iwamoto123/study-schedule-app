@@ -15,29 +15,26 @@ interface TodoItem {
   title: string;
   unitType: UnitType;
   planCount: number;
-  done?: number;
 }
 
-export default function TodayPage() {
+export default function ProgressInputPage() {
   const [todos, setTodos] = useState<TodoItem[]>([]);
-  const uid      = 'demoUser';
+  const uid = 'demoUser';
   const todayKey = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
-  /* --- 当日のデータ取得 --- */
+  /* 当日の予定を取得 */
   useEffect(() => {
     (async () => {
       const snap = await getDocs(
         collection(db, 'users', uid, 'todos', todayKey, 'items')
       );
-      const arr: TodoItem[] = [];
-      snap.forEach((d) => arr.push(d.data() as TodoItem));
-      setTodos(arr);
-      console.log('todayKey =', todayKey); 
-      console.log('docs size =', snap.size);
-    })().catch(console.error);
+      const list: TodoItem[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as Omit<TodoItem, 'id'>) }));
+      setTodos(list);
+    })();
   }, []);
 
-  /* --- 保存処理 (done を加算) --- */
+  /* 保存 */
   const handleSave = async ({
     id,
     doneCount,
@@ -53,7 +50,7 @@ export default function TodayPage() {
 
   return (
     <main className="mx-auto max-w-md space-y-4 p-6">
-      <h1 className="text-xl font-bold">1日のToDoリスト</h1>
+      <h1 className="text-xl font-bold">今日の進捗入力</h1>
 
       {todos.map((t) => (
         <StudyMaterialCard
@@ -63,14 +60,6 @@ export default function TodayPage() {
           onSave={handleSave}
         />
       ))}
-
-      {todos.length === 0 && (
-        <p className="text-center text-sm text-gray-500">
-          今日の予定はありません
-        </p>
-      )}
     </main>
   );
 }
-
-
