@@ -5,12 +5,35 @@ import { Pencil, Trash } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import InputSingle from '@/components/InputSingle';
 
-export type UnitType = 'pages' | 'problems';
+export type UnitType =
+  | 'pages'     // ページ
+  | 'problems'  // 問題
+  | 'words'     // 単語
+  | 'chapters'  // 章(ユニット)
+  | 'none';     // 単位なし
+
+export type Subject =
+  | 'math' | 'english' | 'japanese' | 'chemistry' | 'physics'
+  | 'biology' | 'geology' | 'social' | 'informatics';
+
+const subjectLabel: Record<Subject, string> = {
+  math: '数学',
+  english: '英語',
+  japanese: '国語',
+  chemistry: '化学',
+  physics: '物理',
+  biology: '生物',
+  geology: '地学',
+  social: '社会',
+  informatics: '情報',
+};
+
 
 interface StudyMaterialCardProps {
   id: string;
   /* 表示用 */
   title: string;
+  subject: Subject;
   unitType: UnitType;
   totalCount: number;
   planCount: number;              // 1日あたり
@@ -30,6 +53,7 @@ interface StudyMaterialCardProps {
 export default function StudyMaterialCard({
   id,
   title,
+  subject,
   unitType,
   totalCount,
   planCount,
@@ -63,6 +87,10 @@ export default function StudyMaterialCard({
       {/* 1行目：タイトル + 1日あたり */}
       <div className="flex items-start justify-between gap-4">
         <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+         {/* ★ ここに科目ラベルを追加 */}
+    <p className="mt-0.5 text-xs font-medium text-indigo-600">
+      {subjectLabel[subject]}
+    </p>
 
         <span className="shrink-0 text-sm font-medium text-gray-700">
           {planCount.toLocaleString()} {label}/日

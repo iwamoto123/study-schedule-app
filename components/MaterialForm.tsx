@@ -15,6 +15,15 @@ import { db } from '@/lib/firebase';
 import type { UnitType } from '@/components/StudyMaterialCard';
 import clsx from 'clsx';
 import * as React from 'react'; 
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
+
+import type { Subject } from '@/components/StudyMaterialCard';
 dayjs.extend(isSameOrBefore);
 
 interface FormValues {
@@ -24,6 +33,7 @@ interface FormValues {
   startDate: string;
   deadline: string;
   dailyPlan: number;
+  subject: Subject;
 }
 
 interface Props {
@@ -82,6 +92,7 @@ export default function MaterialForm({ uid, onSaved }: Props) {
       doc(db, 'users', uid, 'todos', todayKey, 'items', ref.id),
       {
         title: data.title,
+        subject: data.subject, 
         unitType: data.unitType,
         planCount: data.dailyPlan,
         done: 0,
@@ -101,8 +112,41 @@ export default function MaterialForm({ uid, onSaved }: Props) {
           {/* --- 参考書名 --- */}
           <div className="space-y-1">
             <Label htmlFor="title">参考書名</Label>
-            <Input id="title" {...register('title', { required: true })} />
+            <Input id="title" placeholder="例) 数学 基礎問題精講"{...register('title', { required: true })} />
           </div>
+          
+          {/* --- 教科 --- */}
+<div className="space-y-1">
+  <Label>教科</Label>
+  <Controller
+    control={control}
+    name="subject"
+    rules={{ required: true }}
+    render={({ field }) => (
+      <Select
+        value={field.value}
+        onValueChange={(v) => field.onChange(v as Subject)}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="教科を選択" />
+        </SelectTrigger>
+
+        <SelectContent>
+          <SelectItem value="math">数学</SelectItem>
+          <SelectItem value="english">英語</SelectItem>
+          <SelectItem value="japanese">国語</SelectItem>
+          <SelectItem value="chemistry">化学</SelectItem>
+          <SelectItem value="physics">物理</SelectItem>
+          <SelectItem value="biology">生物</SelectItem>
+          <SelectItem value="geology">地学</SelectItem>
+          <SelectItem value="social">社会</SelectItem>
+          <SelectItem value="informatics">情報</SelectItem>
+        </SelectContent>
+      </Select>
+    )}
+  />
+</div>
+
 
           {/* --- 単位 --- */}
           <div className="space-y-1">
@@ -115,6 +159,9 @@ export default function MaterialForm({ uid, onSaved }: Props) {
                   options={[
                     { label: 'ページ', value: 'pages' },
                     { label: '問題',  value: 'problems' },
+                    { label: '単語',  value: 'words' },
+                    { label: '章・ユニット',    value: 'chapters' },
+                    { label: 'なし',  value: 'none' },
                   ]}
                   {...field}
                 />
@@ -126,7 +173,15 @@ export default function MaterialForm({ uid, onSaved }: Props) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>
-                総{watch('unitType') === 'pages' ? 'ページ' : '問題'}数
+                {
+                    ({
+                        pages: '総ページ数',
+                        problems: '総問題数',
+                        words:    '合計単語数',
+                        chapters: '章・ユニット数',
+                        none:     '総数',
+                    } as const)[watch ('unitType')]
+                }
               </Label>
               <Controller
                 control={control}

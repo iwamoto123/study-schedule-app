@@ -41,6 +41,7 @@ export default function MaterialsPage() {
             key={m.id}
             id={m.id}
             title={m.title}
+            subject={m.subject}
             unitType={m.unitType}
             planCount={m.dailyPlan}
             totalCount={m.totalCount}
