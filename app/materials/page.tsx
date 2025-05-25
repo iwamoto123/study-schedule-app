@@ -6,12 +6,41 @@
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useEffect, useState } from 'react';
-import StudyMaterialCard from '@/components/StudyMaterialCard';
+import StudyMaterialCard, { UnitType, Subject } from '@/components/StudyMaterialCard';
 import MaterialForm from '@/components/MaterialForm';
+import {
+  doc,
+  deleteDoc,
+} from 'firebase/firestore';
 
 export default function MaterialsPage() {
   const uid = 'demoUser';
-  const [list, setList] = useState<any[]>([]);
+
+  /* ---------- 編集／削除用 ---------- */
+type Material = {
+  id: string;
+  title: string;
+  subject: Subject;
+  unitType: UnitType;
+  totalCount: number;
+  dailyPlan: number;
+  startDate?: string;
+  deadline?: string;
+};
+
+const [editing, setEditing] = useState<Material | null>(null);
+const closeModal = () => setEditing(null);
+
+const handleEdit = (mat: Material) => setEditing(mat);
+
+const handleDelete = async (mat: Material) => {
+  if (!confirm(`「${mat.title}」を削除します。よろしいですか？`)) return;
+  await deleteDoc(doc(db, 'users', uid, 'materials', mat.id));
+  // todos 側を一括で消す場合はここに追加 deleteDoc(...)
+};
+
+  
+  const [list, setList] = useState<Material[]>([]);
 
   /* ---- 一覧取得 ---- */
   useEffect(() => {
@@ -20,8 +49,9 @@ export default function MaterialsPage() {
       orderBy('createdAt', 'asc'),
     );
     return onSnapshot(q, (snap) => {
-      const arr: any[] = [];
-      snap.forEach((d) => arr.push({ id: d.id, ...d.data() }));
+      const arr: Material[] = [];
+      snap.forEach((d) =>
+        arr.push({ id: d.id, ...(d.data() as Omit<Material, 'id'>) }));
       setList(arr);
     });
   }, []);
@@ -31,23 +61,41 @@ export default function MaterialsPage() {
       <h1 className="text-xl font-bold">新しい参考書を登録</h1>
 
       {/* フォーム */}
-      <MaterialForm uid={uid} onSaved={() => {/* 何もしなくても onSnapshot で最新化 */}} />
+      {/* 追加ボタンで新規モードにする例（任意） */}
+<MaterialForm
+  uid={uid}
+  mode="create"
+  onSaved={closeModal}
+/>
 
+{/* 編集モーダル（editing にデータが入ったときだけ表示） */}
+{editing && (
+  <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
+    <div className="w-full max-w-md">
+      <MaterialForm
+        uid={uid}
+        mode="update"
+        docId={editing.id}
+        defaultValues={editing} 
+        onSaved={closeModal}
+        onCancel={closeModal}
+      />
+    </div>
+  </div>
+)}
+
+     
       {/* 一覧 */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">登録済みの参考書</h2>
         {list.map((m) => (
           <StudyMaterialCard
             key={m.id}
-            id={m.id}
-            title={m.title}
-            subject={m.subject}
-            unitType={m.unitType}
-            planCount={m.dailyPlan}
-            totalCount={m.totalCount}
-            startDate={m.startDate}
-            deadline={m.deadline}
+            {...m}
+            planCount={m.dailyPlan} 
             editable={false}
+            onEdit={() => handleEdit(m as Material)}
+            onDelete={() => handleDelete(m as Material)}
           />
         ))}
       </section>

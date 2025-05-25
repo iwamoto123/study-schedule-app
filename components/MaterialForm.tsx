@@ -36,12 +36,18 @@ interface FormValues {
   subject: Subject;
 }
 
-interface Props {
+type Mode = 'create' | 'update';
+
+interface Props{
   uid: string;
-  onSaved: () => void;   // 保存後に呼ばれる
+  mode?: Mode;   
+  defaultValues?: Partial<FormValues>; 
+  docId?: string; 
+  onSaved: () => void;
+  onCancel?: () => void;
 }
 
-export default function MaterialForm({ uid, onSaved }: Props) {
+export default function MaterialForm({ uid, mode = 'create', defaultValues, docId, onSaved }: Props) {
   /* ------------- フォーム ---------------- */
   const {
     register,
@@ -60,6 +66,8 @@ export default function MaterialForm({ uid, onSaved }: Props) {
       startDate: dayjs().format('YYYY-MM-DD'),
       deadline: '',
       dailyPlan: 0,
+      subject: 'math',
+      ...defaultValues,   
     },
   });
 
@@ -79,30 +87,45 @@ export default function MaterialForm({ uid, onSaved }: Props) {
   }, [totalCount, startDate, deadline, setValue]);
 
   /* ------------- 送信 ---------------- */
-  const onSubmit = async (data: FormValues) => {
-    // materials 保存
+ const onSubmit = async (data: FormValues) => {
+  let materialId = docId;    // update のときは既存 ID が入る
+
+  if (mode === 'create') {
+    // ---------- 新規 ----------
     const ref = await addDoc(collection(db, 'users', uid, 'materials'), {
       ...data,
       createdAt: serverTimestamp(),
     });
+    materialId = ref.id;
+  } else {
+    // ---------- 更新 ----------
+    await setDoc(
+      doc(db, 'users', uid, 'materials', docId!),
+      { ...data },
+      { merge: true },
+    );
+  }
 
-    // 今日の todos/items へコピー
+  /* ---- 新規登録時に todos/items へもコピー ---- */
+  if (mode === 'create') {
     const todayKey = dayjs().format('YYYYMMDD');
     await setDoc(
-      doc(db, 'users', uid, 'todos', todayKey, 'items', ref.id),
+      doc(db, 'users', uid, 'todos', todayKey, 'items', materialId!),
       {
         title: data.title,
-        subject: data.subject, 
+        subject: data.subject,
         unitType: data.unitType,
         planCount: data.dailyPlan,
         done: 0,
       },
       { merge: true },
     );
+  }
 
-    reset();
-    onSaved();
-  };
+  onSaved();          // モーダルを閉じるなど
+  reset();            // フォーム初期化
+};
+
 
   /* ------------- UI ---------------- */
   return (

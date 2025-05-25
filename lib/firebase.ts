@@ -1,17 +1,40 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { initializeFirestore } from 'firebase/firestore';
+// lib/firebase.ts
+'use client';
 
-export const firebaseConfig = JSON.parse(
-  process.env.NEXT_PUBLIC_FIREBASE_CONFIG as string
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  initializeFirestore,
+  connectFirestoreEmulator,
+} from 'firebase/firestore';
+
+/* ==========================================================
+ * 1. FirebaseConfig は .env から取得
+ * ========================================================= */
+const firebaseConfig = JSON.parse(
+  process.env.NEXT_PUBLIC_FIREBASE_CONFIG as string,
 );
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+/* ==========================================================
+ * 2. Firebase App 初期化（既にあれば再利用）
+ * ========================================================= */
+export const app =
+  getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-/* v11.6: FirestoreSettings に useFetchStreams は無い */
+/* ==========================================================
+ * 3. Firestore 初期化
+ *    - experimentalForceLongPolling: ネットワーク相性対策
+ *    - 第3引数: databaseId（単一 DB なら省略可）
+ * ========================================================= */
 export const db = initializeFirestore(
   app,
-  {
-    experimentalForceLongPolling: true,  // ← 必要なければ {} だけでも可
-  },
-  'study-schedule-app'                   // ← あなたの Database ID
+  { experimentalForceLongPolling: true },
+  'study-schedule-app',
 );
+
+/* ==========================================================
+ * 4. 開発時は Emulator に接続
+ *    .env.local ⇒ NEXT_PUBLIC_EMULATOR=true
+ * ========================================================= */
+if (process.env.NEXT_PUBLIC_EMULATOR === 'true') {
+  connectFirestoreEmulator(db, 'localhost', 8080);
+}
