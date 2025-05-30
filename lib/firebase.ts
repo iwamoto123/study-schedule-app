@@ -14,6 +14,7 @@ const firebaseConfig = JSON.parse(
   process.env.NEXT_PUBLIC_FIREBASE_CONFIG as string,
 );
 
+
 /* ==========================================================
  * 2. Firebase App 初期化（既にあれば再利用）
  * ========================================================= */
@@ -25,6 +26,8 @@ export const app =
  *    - experimentalForceLongPolling: ネットワーク相性対策
  *    - 第3引数: databaseId（単一 DB なら省略可）
  * ========================================================= */
+
+
 export const db = initializeFirestore(
   app,
   { experimentalForceLongPolling: true },
