@@ -1,6 +1,19 @@
 {
   "emulators": {
-    "firestore": { "port": 8080 }},
+    "firestore": {
+      "port": 8080
+    },
+    "functions": {
+      "port": 0
+    },
+    "hosting": {
+      "port": 5000
+    },
+    "ui": {
+      "enabled": true
+    },
+    "singleProjectMode": true
+  },
   "hosting": {
     "source": ".",
     "ignore": [

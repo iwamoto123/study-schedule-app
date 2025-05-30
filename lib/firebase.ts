@@ -30,8 +30,7 @@ export const app =
 
 export const db = initializeFirestore(
   app,
-  { experimentalForceLongPolling: true },
-  'study-schedule-app',
+  { experimentalForceLongPolling: true }
 );
 
 /* ==========================================================

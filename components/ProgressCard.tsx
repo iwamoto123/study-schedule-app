@@ -1,3 +1,5 @@
+///ui/ProgressCard.tsx
+
 'use client';
 
 /* =======================================================================
@@ -6,6 +8,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import * as Slider from '@radix-ui/react-slider';
 import { clampNumber } from '@/lib/validators';
+import debounce from 'lodash-es/debounce';
 
 /* ---------- 型定義 ---------- */
 export type UnitType =
@@ -84,19 +87,18 @@ export default function ProgressCard({
 
   /* ------------------ Firestore 保存 ------------------ */
   const firstRender = useRef(true);
+  const debouncedSave = useMemo(
+  () => debounce(onSave, 500),   // 500ms 無操作でまとめて保存
+  [onSave],
+);
 
-  useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;         // ← 初回は保存しない
-      return;
-    }
-    onSave({
-      id,
-      doneStart: start,
-      doneEnd:   end,
-    });
-  }, [id, start, end, onSave]);
-
+useEffect(() => {
+  if (firstRender.current) {
+    firstRender.current = false;
+    return;
+  }
+  debouncedSave({ id, doneStart: start, doneEnd: end });
+}, [id, start, end, debouncedSave]);
   /* ------------------ UI ------------------ */
   return (
     <div className="flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
@@ -124,11 +126,11 @@ export default function ProgressCard({
           <Slider.Range className="absolute h-full rounded-full bg-indigo-500" />
         </Slider.Track>
         <Slider.Thumb
-          className="block h-4 w-4 rounded-full bg-white shadow-sm"
+          className="block h-4 w-4 rounded-full bg-white shadow-[0_0_4px_2px_rgba(0,0,0,0.25)] ring-1 ring-gray-300 transition-colors hover:bg-indigo-50 hover:ring-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           aria-label="Start"
         />
         <Slider.Thumb
-          className="block h-4 w-4 rounded-full bg-white shadow-sm"
+          className="block h-4 w-4 rounded-full bg-white shadow-sm ring-1 ring-gray-300 transition-colors hover:bg-indigo-50 hover:ring-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           aria-label="End"
         />
       </Slider.Root>
@@ -143,8 +145,11 @@ export default function ProgressCard({
           type="button"
           onClick={() => {
             if (isDone) {
-              // 未入力へ（範囲を 0 長にしてわかりやすくする）
-              setEnd(Math.max(plannedStart - 1, totalStart));
+          
+              const reset = Math.max(plannedStart - 1, totalStart);
+              setStart(reset);
+              setEnd(reset);
+        
             } else {
               // 予定どおり完了へ
               setStart(plannedStart);
