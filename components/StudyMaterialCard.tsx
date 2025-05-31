@@ -19,7 +19,7 @@ export type Subject =
   | 'math' | 'english' | 'japanese' | 'chemistry' | 'physics'
   | 'biology' | 'geology' | 'social' | 'informatics';
 
-const subjectLabel: Record<Subject, string> = {
+export const subjectLabel: Record<Subject, string> = {
   math:        '数学',
   english:     '英語',
   japanese:    '国語',
