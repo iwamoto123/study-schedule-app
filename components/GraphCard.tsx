@@ -43,28 +43,30 @@ export default function GraphCard({ material, data }: Props) {
   } = material;
 
 /* ---------- 進捗計算 ---------- */
-// A) 最新の “actual が入っている” データ点
+// 最新で actual が入っている点（無ければ undefined）
 const recent = [...data].reverse().find(p => p.actual !== null);
 
-// 残ページ数（実績が無ければ totalCount）
-const todayRemaining = recent?.actual ?? totalCount;
+/* --- 今日の理想残ページ --- */
+const idealToday = data.find(
+  d => d.date === dayjs().format('M/D'),
+)?.ideal;
 
-// 残日数（今日含む）
-const daysLeft = Math.max(
-  1,
-  dayjs(deadline).diff(dayjs(), "day") + 1
-);
-const todayTarget = Math.ceil(todayRemaining / daysLeft);
+/* --- 今日の実残ページ（ログ無ければ totalCount） --- */
+const actualToday = recent?.actual ?? totalCount;
 
-/* ---------- 遅れ / 先行 / 計画通り ---------- */
+/* --- 残日数（今日を含む） --- */
+const daysLeft = Math.max(1, dayjs(deadline).diff(dayjs(), 'day') + 1);
+
+/* --- 1 日ノルマ --- */
+const todayTarget = Math.ceil(actualToday / daysLeft);
+
+/* --- 差分 & メッセージ --- */
 let message: React.ReactNode = null;
-
-if (recent) {
-  const diff = (recent.actual as number) - recent.ideal; // ±差分
+if (idealToday !== undefined) {
+  const diff = actualToday - idealToday;          // + = 遅れ
 
   if (diff > 0) {
-    /* ----- 遅れている ----- */
-    const catchUpPerDay = Math.ceil(diff / daysLeft);
+    const newDailyTarget = Math.ceil(actualToday / daysLeft);
     message = (
       <>
         <span className="font-semibold text-red-600">
@@ -72,12 +74,10 @@ if (recent) {
           &nbsp;遅れています！
         </span>
         <br />
-        計画に追いつくには 1⽇&nbsp;
-        {catchUpPerDay}&nbsp;{unitLabel[unitType]}
+        計画に追いつくには 1⽇ {newDailyTarget} {unitLabel[unitType]}
       </>
     );
   } else if (diff < 0) {
-    /* ----- 先行している ----- */
     message = (
       <span className="font-semibold text-green-600">
         目標ペースより&nbsp;{Math.abs(diff)}&nbsp;
@@ -85,7 +85,6 @@ if (recent) {
       </span>
     );
   } else {
-    /* ----- ぴったり計画通り ----- */
     message = (
       <span className="font-semibold text-emerald-600">
         計画通りです！ その調子！
