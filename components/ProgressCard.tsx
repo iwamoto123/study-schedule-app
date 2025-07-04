@@ -1,3 +1,4 @@
+// components/ProgressCard.tsx
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -8,7 +9,8 @@ import clsx        from 'clsx';
 import { clampNumber }   from '@/lib/validators';
 import InputSingle       from '@/components/InputSingle';
 import { Subject }       from '@/types/common';
-import { subjectLabel }  from '@/components/StudyMaterialCard'; // 既存を再利用
+import { subjectLabel, unitLabel }  from '@/components/StudyMaterialCard'; // 既存を再利用
+
 
 /* ---------- 型定義 ---------- */
 export type UnitType =
@@ -32,9 +34,6 @@ interface ProgressCardProps {
 
   onSave: (p: { id: string; doneStart: number | null; doneEnd: number | null }) => void;
 }
-const unitLabel: Record<UnitType, string> = {
-  pages: 'ページ', problems: '問題', words: '単語', chapters: '章', none: '',
-};
 
 /* ===================================================================== */
 export default function ProgressCard(props: ProgressCardProps) {

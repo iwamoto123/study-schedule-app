@@ -31,7 +31,7 @@ export const subjectLabel: Record<Subject, string> = {
   informatics: '情報',
 };
 
-const unitLabel: Record<UnitType, string> = {
+export const unitLabel: Record<UnitType, string> = {
   pages:    'ページ',
   problems: '問題',
   words:    '単語',

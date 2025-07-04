@@ -47,7 +47,7 @@ interface Props{
   onCancel?: () => void;
 }
 
-export default function MaterialForm({ uid, mode = 'create', defaultValues, docId, onSaved }: Props) {
+export default function MaterialForm({ uid, mode = 'create', defaultValues, docId, onSaved, onCancel }: Props) {
   /* ------------- フォーム ---------------- */
   const {
     register,
@@ -274,13 +274,27 @@ export default function MaterialForm({ uid, mode = 'create', defaultValues, docI
           </div>
 
           {/* --- 保存ボタン --- */}
-          <Button
-            type="submit"
-            disabled={!isValid || watch('dailyPlan') === 0}
-            className="w-full"
-          >
-            保存
-          </Button>
+      {/* --- 保存ボタン --- */}
+<Button
+  type="submit"
+  disabled={!isValid || watch('dailyPlan') === 0}
+  className="w-full"
+>
+  保存
+</Button>
+
+{/* --- キャンセルボタン（編集モード時のみ表示） --- */}
+{mode === 'update' && onCancel && (
+  <Button
+    type="button"
+    variant="outline"
+    onClick={onCancel}
+    className="w-full text-gray-700 mt-2"
+  >
+    キャンセル
+  </Button>
+)}
+
         </form>
       </CardContent>
     </Card>

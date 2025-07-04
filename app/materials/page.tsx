@@ -70,21 +70,25 @@ const handleDelete = async (mat: Material) => {
 
 {/* 編集モーダル（editing にデータが入ったときだけ表示） */}
 {editing && (
-  <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
-    <div className="w-full max-w-md">
+  <div
+    className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+    onClick={closeModal} // ← 背景をクリックしたとき
+  >
+    <div
+      className="w-full max-w-md"
+      onClick={(e) => e.stopPropagation()} // ← 内側クリックで閉じないように
+    >
       <MaterialForm
         uid={uid}
         mode="update"
         docId={editing.id}
-        defaultValues={editing} 
+        defaultValues={editing}
         onSaved={closeModal}
-        onCancel={closeModal}
+        onCancel={closeModal} // ← 後述のキャンセルボタン用
       />
     </div>
   </div>
 )}
-
-     
       {/* 一覧 */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">登録済みの参考書</h2>
