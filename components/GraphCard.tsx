@@ -70,6 +70,7 @@ export default function GraphCard({ material, data }: Props) {
   const actualToday = recent?.actual ?? totalCount;
   const daysLeft    = Math.max(1, dayjs(deadline).diff(dayjs(), 'day') + 1);
   const todayTarget = Math.ceil(actualToday / daysLeft);
+  const unitName = unitLabel[unitType];     
 
   /* 差分メッセージ */
   let message: React.ReactNode = null;
@@ -129,7 +130,7 @@ export default function GraphCard({ material, data }: Props) {
 
   /* ======= 表示 ======= */
   return (
-    <div className="space-y-2 rounded-lg border bg-white p-4 shadow-sm">
+    <div className="space-y-2 p-0 sm:rounded-lg sm:border sm:bg-white sm:p-4 sm:shadow-sm">
       {/* 科目ラベル */}
       <p className="text-center text-sm font-medium text-indigo-600">
         {subjectLabel[subject as keyof typeof subjectLabel]}
@@ -147,7 +148,7 @@ export default function GraphCard({ material, data }: Props) {
 
       {/* グラフ */}
       <ResponsiveContainer width="100%" height={290}>
-        <ComposedChart data={chartData} margin={{ top: 32, right: 50, left: 20, bottom: 20 }}>
+        <ComposedChart data={chartData} margin={{ top: 32, right: 0, left: -6, bottom: 20 }}>
           {/* ---------- グリッド ---------- */}
           <CartesianGrid
             stroke="#e5e7eb"
@@ -187,7 +188,7 @@ export default function GraphCard({ material, data }: Props) {
             axisLine={{ stroke: '#374151' }}
             tickLine={false}
           >
-            <Label value="残ページ" position="top" offset={10} style={{ fill: '#374151', fontSize: 12 }} />
+            <Label value={`残${unitName}数`} position="top" offset={10} style={{ fill: '#374151', fontSize: 12 }} />
           </YAxis>
 
           {/* 右 Y 軸 */}

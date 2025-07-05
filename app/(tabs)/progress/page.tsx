@@ -349,7 +349,7 @@ const cards: CardData[] = useMemo(() =>
 
   /* ----- 描画 ----- */
   return (
-    <main className="mx-auto flex max-w-lg flex-col gap-4 p-4">
+    <main className="mx-auto w-full max-w-none flex flex-col gap-4 p-4 sm:max-w-lg">
       <h1 className="mb-4 text-2xl font-bold">今日の進捗入力 {todayDisp}</h1>
 
       {/* --- 今日のカード --- */}

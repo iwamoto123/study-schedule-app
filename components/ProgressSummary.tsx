@@ -41,7 +41,7 @@ export default function ProgressSummary({ items }: { items: ProgressSummaryItem[
              : `p. ${plannedStart} 〜 ${plannedEnd} ${unit}`;
             const done =
               doneStart !== null && doneEnd !== null
-                ? `p. ${doneStart} 〜 ${doneEnd} ${unit} ✅`
+                ? `p. ${doneStart} 〜 ${doneEnd} ${unit}`
                 : '（未入力）';
             return (
               <tr key={id} className="border-t font-medium text-gray-800">

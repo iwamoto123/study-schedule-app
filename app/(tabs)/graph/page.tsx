@@ -155,7 +155,7 @@ export default function ProgressGraphPage() {
 
   /* ---------- (4) 画面 ---------- */
   return (
-    <main className="mx-auto max-w-2xl p-4 space-y-8">
+    <main className="mx-auto w-full max-w-none p-4 space-y-8 md:max-w-3xl">
       <h1 className="text-xl font-bold">進捗グラフ</h1>
 
       {/* 表示範囲タブ */}
