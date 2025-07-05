@@ -1,3 +1,5 @@
+//conponents/GrapfCard.tsx
+
 'use client';
 
 import React from 'react';
@@ -22,7 +24,7 @@ import { unitLabel, subjectLabel } from '@/components/StudyMaterialCard';
 export type GraphDataPoint = {
   date: string;          // X 軸ラベル (M/D)
   actual: number | null; // 残数（累積）
-  ideal: number;         // 理想残数（累積）
+  ideal: number  | null;       // 理想残数（累積）
   daily?: number | null; // 当日クリア量
 };
 
@@ -64,14 +66,14 @@ export default function GraphCard({ material, data }: Props) {
   /* ======= メタ計算 ======= */
   const { title, subject, totalCount, unitType, deadline } = material;
   const recent      = [...data].reverse().find(p => p.actual !== null);
-  const idealToday  = data.find(d => d.date === dayjs().format('M/D'))?.ideal;
+  const idealToday: number | null   = data.find(d => d.date === dayjs().format('M/D'))?.ideal ?? null;
   const actualToday = recent?.actual ?? totalCount;
   const daysLeft    = Math.max(1, dayjs(deadline).diff(dayjs(), 'day') + 1);
   const todayTarget = Math.ceil(actualToday / daysLeft);
 
   /* 差分メッセージ */
   let message: React.ReactNode = null;
-  if (idealToday !== undefined) {
+  if (idealToday !== null) {
     const diff = actualToday - idealToday;
     if (diff > 0) {
       const newDaily = Math.ceil(actualToday / daysLeft);
