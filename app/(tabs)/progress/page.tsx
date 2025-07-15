@@ -27,6 +27,8 @@ import RangeSlider      from '@/components/RangeSlider';
 import InputSingle      from '@/components/InputSingle';
 import { subjectLabel, unitLabel } from '@/components/StudyMaterialCard';
 import type { Material } from '@/types/material';
+import { calcTodayPlan } from '@/lib/calcTodayPlan';
+
 import type { TodoItem } from '@/types/todo';
 
 dayjs.locale('ja');
@@ -227,7 +229,11 @@ export default function ProgressPage() {
     const q = query(collection(db, 'users', uid, 'materials'), orderBy('createdAt', 'asc'));
     return onSnapshot(q, snap => {
       const map: Record<string, Material> = {};
-      snap.forEach(d => (map[d.id] = { id: d.id, ...(d.data() as any) }));
+      snap.forEach(d => {
+        const m = { id: d.id, ...(d.data() as any) } as Material;
+        m.todayPlan = calcTodayPlan(m); // 参考として保持（グラフ等に使うなら）
+        map[d.id]   = m;
+      });
       setMaterials(map);
     });
   }, [uid]);
@@ -241,93 +247,97 @@ export default function ProgressPage() {
     });
   }, [uid, todayKey]);
 
-/* ----- カードデータ生成（今日） ----- */
-const cards: CardData[] = useMemo(() =>
-  Object.values(materials).map(mat => {
-    const todo = todos[mat.id];          // 今日入力した範囲（なければ undefined）
+  /* ----- カードデータ生成（今日） ----- */
+  const cards: CardData[] = useMemo(() =>
+    Object.values(materials).map(mat => {
+      const todo = todos[mat.id];
 
-    /* ① まず “今日入力したページ数” を求める ------------- */
-    const doneSpan =
-      todo?.doneStart != null && todo?.doneEnd != null
-        ? todo.doneEnd - todo.doneStart + 1   // 例: 9〜18 → 10 ページ
-        : 0;
+      /* ① 今日入力済みページ数 */
+      const doneSpan =
+        todo?.doneStart != null && todo?.doneEnd != null
+          ? todo.doneEnd - todo.doneStart + 1
+          : 0;
 
-    /* ② 「今朝時点」の累積完了ページ = completed から今日入力分を引く */
-    const baseCompleted = (mat.completed ?? 0) - doneSpan;
+      /* ② 今朝時点 completed */
+      const baseCompleted = (mat.completed ?? 0) - doneSpan;
 
-    /* ③ 今朝時点の残り進捗で「今日ノルマ」を計算（入力有無は無関係） */
-    const remaining = Math.max(mat.totalCount - baseCompleted, 0);
-    const daysLeft  = Math.max(
-      1,
-      dayjs(mat.deadline).diff(dayjs(), 'day') + 1,
-    );
-    const todayPlan = Math.ceil(remaining / daysLeft);
+      /* ③ calcTodayPlan でノルマを統一計算 */
+      const todayPlan = calcTodayPlan({
+        totalCount: mat.totalCount,
+        completed:  baseCompleted,
+        deadline:   mat.deadline,
+      });
 
-    const planStart = baseCompleted + 1;
-    const planEnd   = Math.min(planStart + todayPlan - 1, mat.totalCount);
+      const planStart = baseCompleted + 1;
+      const planEnd   = Math.min(planStart + todayPlan - 1, mat.totalCount);
 
-    return {
-      id: mat.id,
-      title: mat.title,
-      subject: mat.subject,
-      unitType: mat.unitType,
-      totalStart: 1,
-      totalEnd: mat.totalCount,
-
-      /* ★ “今日の予定” 列は終日この値で固定 ★ */
-      plannedStart: planStart,
-      plannedEnd:   planEnd,
-
-      /* 入力済みがあれば表示 */
-      doneStart: todo?.doneStart ?? null,
-      doneEnd:   todo?.doneEnd   ?? null,
-      prevStart: todo?.doneStart ?? null,
-      prevEnd:   todo?.doneEnd   ?? null,
-    };
-  }),
-[materials, todos]);
-
-
-  /* ----- 明日の予定カード生成 ----- */
-  const tomorrowCards = useMemo(() =>
-    Object.values(materials).flatMap(mat => {
-      // const completed = mat.completed ?? 0;
-      // // 今日分の計画を計算
-      // const remainingToday = Math.max(mat.totalCount - completed, 0);
-      // const daysLeftToday  = Math.max(1, dayjs(mat.deadline).diff(dayjs(), 'day') + 1);
-      // const todayPlanCnt   = Math.ceil(remainingToday / daysLeftToday);
-
-      // // 今日終了後の累積完了ページ
-      // const afterTodayCompleted = Math.min(completed + todayPlanCnt, mat.totalCount);
-      // if (afterTodayCompleted >= mat.totalCount) return [] as never[]; // もう終わり
-
-      // // 明日基準で再計算
-      // const tomorrow = dayjs().add(1, 'day');
-      // const daysLeftTmw = Math.max(1, dayjs(mat.deadline).diff(tomorrow, 'day') + 1);
-      // const remainingTmw = mat.totalCount - afterTodayCompleted;
-      // const tmwPlanCnt   = Math.ceil(remainingTmw / daysLeftTmw);
-
-      const completed = mat.completed ?? 0;     
-      if (completed >= mat.totalCount) return [] as never[];
-
-      /* ---- 明日のノルマを計算 ---- */
-      const tomorrow      = dayjs().add(1, 'day');
-      const daysLeftTmw   = Math.max(1, dayjs(mat.deadline).diff(tomorrow, 'day') + 1);
-      const remainingTmw  = mat.totalCount - completed;
-      const tmwPlanCnt    = Math.ceil(remainingTmw / daysLeftTmw);
-
-      return [{
+      return {
         id: mat.id,
         title: mat.title,
         subject: mat.subject,
         unitType: mat.unitType,
-        // planStart: afterTodayCompleted + 1,
-        // planEnd:   Math.min(afterTodayCompleted + tmwPlanCnt, mat.totalCount),
-        planStart: completed + 1,
-        planEnd:   Math.min(completed + tmwPlanCnt, mat.totalCount),
-      }];
+        totalStart: 1,
+        totalEnd: mat.totalCount,
+
+        plannedStart: planStart,
+        plannedEnd:   planEnd,
+
+        doneStart: todo?.doneStart ?? null,
+        doneEnd:   todo?.doneEnd   ?? null,
+        prevStart: todo?.doneStart ?? null,
+        prevEnd:   todo?.doneEnd   ?? null,
+      } as CardData;
     }),
-  [materials]);
+  [materials, todos]);
+
+
+/* ----- 明日の予定カード生成 ----- */
+const tomorrowCards = useMemo(() => {
+  return Object.values(materials).flatMap(mat => {
+    // ① すでに完了している量
+    const completedNow = mat.completed ?? 0;
+    if (completedNow >= mat.totalCount) return [];      // 全部終わっている教材は除外
+
+    // ② 今日やるべき量（期待値）を再計算
+    const todayPlanCnt = calcTodayPlan(
+      { totalCount: mat.totalCount, completed: completedNow, deadline: mat.deadline },
+      dayjs(),                                         // きょう基準
+    );
+
+    // ③ 今日が終わった時点の累積完了量
+    const completedEndOfToday = Math.min(
+      completedNow + todayPlanCnt,
+      mat.totalCount,
+    );
+
+    // ④ 明日のノルマを計算（基準日を「明日」に）
+    const tomorrow      = dayjs().add(1, 'day');
+    const tmwPlanCnt    = calcTodayPlan(
+      {
+        totalCount: mat.totalCount,
+        completed:  completedEndOfToday,
+        deadline:   mat.deadline,
+      },
+      tomorrow,
+    );
+
+    // ⑤ 明日の開始/終了ページ
+    const planStart = completedEndOfToday + 1;
+    const planEnd   = Math.min(planStart + tmwPlanCnt - 1, mat.totalCount);
+
+    return [{
+      id:    mat.id,
+      title: mat.title,
+      subject:  mat.subject,
+      unitType: mat.unitType,
+      /* TomorrowPlan コンポーネントが期待する値 */
+      planStart,
+      planEnd,
+    }];
+  });
+}, [materials]);
+
+
 
   /* ----- 保存ハンドラ ----- */
   const handleSave = useCallback(async (args: {

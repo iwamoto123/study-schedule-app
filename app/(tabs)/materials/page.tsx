@@ -1,372 +1,127 @@
-// // 参考書登録ページ
-
 // app/materials/page.tsx
 'use client';
 
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useEffect, useState } from 'react';
-import StudyMaterialCard, { UnitType, Subject } from '@/components/StudyMaterialCard';
-import MaterialForm from '@/components/MaterialForm';
 import {
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
   doc,
   deleteDoc,
 } from 'firebase/firestore';
 
+import { db } from '@/lib/firebase';
+import StudyMaterialCard from '@/components/StudyMaterialCard';
+import MaterialForm      from '@/components/MaterialForm';
+
+import type { Material } from '@/types/material';   // ← 共通型だけを import
+
 export default function MaterialsPage() {
   const uid = 'demoUser';
 
-  /* ---------- 編集／削除用 ---------- */
-type Material = {
-  id: string;
-  title: string;
-  subject: Subject;
-  unitType: UnitType;
-  totalCount: number;
-  dailyPlan: number;
-  startDate?: string;
-  deadline?: string;
-};
+  /* ──────────────────────────────
+   * 編集モーダル用 state
+   * ────────────────────────────── */
+  const [editing, setEditing] = useState<Material | null>(null);
+  const closeModal  = ()      => setEditing(null);
+  const handleEdit  = (m: Material) => setEditing(m);
+  const handleDelete = async (m: Material) => {
+    if (!confirm(`「${m.title}」を削除します。よろしいですか？`)) return;
+    await deleteDoc(doc(db, 'users', uid, 'materials', m.id));
+    // TODO: todos 側も連動削除するならここで
+  };
 
-const [editing, setEditing] = useState<Material | null>(null);
-const closeModal = () => setEditing(null);
-
-const handleEdit = (mat: Material) => setEditing(mat);
-
-const handleDelete = async (mat: Material) => {
-  if (!confirm(`「${mat.title}」を削除します。よろしいですか？`)) return;
-  await deleteDoc(doc(db, 'users', uid, 'materials', mat.id));
-  // todos 側を一括で消す場合はここに追加 deleteDoc(...)
-};
-
-  
+  /* ──────────────────────────────
+   * 一覧取得
+   * ────────────────────────────── */
   const [list, setList] = useState<Material[]>([]);
 
-  /* ---- 一覧取得 ---- */
   useEffect(() => {
     const q = query(
       collection(db, 'users', uid, 'materials'),
       orderBy('createdAt', 'asc'),
     );
-    return onSnapshot(q, (snap) => {
+
+    return onSnapshot(q, snap => {
       const arr: Material[] = [];
-      snap.forEach((d) =>
-        arr.push({ id: d.id, ...(d.data() as Omit<Material, 'id'>) }));
+      snap.forEach(d => {
+        const data = d.data();
+
+        arr.push({
+          id:          d.id,
+          title:       data.title,
+          subject:     data.subject,
+          unitType:    data.unitType,
+          totalCount:  data.totalCount,
+          dailyPlan:   data.dailyPlan ?? 0,
+          completed:   data.completed ?? 0,   // ★ 0 を補完
+          startDate:   data.startDate,
+          deadline:    data.deadline,
+          createdAt:   data.createdAt,
+        });
+      });
       setList(arr);
     });
-  }, []);
+  }, [uid]);
 
+  /* ──────────────────────────────
+   * 画面
+   * ────────────────────────────── */
   return (
     <main className="mx-auto max-w-md space-y-8 p-4">
       <h1 className="text-xl font-bold">新しい参考書を登録</h1>
 
-      {/* フォーム */}
-      {/* 追加ボタンで新規モードにする例（任意） */}
-<MaterialForm
-  uid={uid}
-  mode="create"
-  onSaved={closeModal}
-/>
+      {/* ---------- 登録フォーム ---------- */}
+      <MaterialForm uid={uid} mode="create" onSaved={closeModal} />
 
-{/* 編集モーダル（editing にデータが入ったときだけ表示） */}
-{editing && (
-  <div
-    className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
-    onClick={closeModal} // ← 背景をクリックしたとき
-  >
-    <div
-      className="w-full max-w-md"
-      onClick={(e) => e.stopPropagation()} // ← 内側クリックで閉じないように
-    >
-      <MaterialForm
-        uid={uid}
-        mode="update"
-        docId={editing.id}
-        defaultValues={editing}
-        onSaved={closeModal}
-        onCancel={closeModal} // ← 後述のキャンセルボタン用
-      />
-    </div>
-  </div>
-)}
-      {/* 一覧 */}
+      {/* ---------- 編集モーダル ---------- */}
+      {editing && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+          onClick={closeModal}
+        >
+          <div
+            className="w-full max-w-md"
+            onClick={e => e.stopPropagation()}
+          >
+            <MaterialForm
+              uid={uid}
+              mode="update"
+              docId={editing.id}
+              defaultValues={editing}
+              onSaved={closeModal}
+              onCancel={closeModal}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ---------- 一覧 ---------- */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">登録済みの参考書</h2>
-        {list.map((m) => (
+
+        {list.map(m => (
           <StudyMaterialCard
             key={m.id}
-            {...m}
-            planCount={m.dailyPlan} 
+            /* --- 基本情報 --- */
+            id={m.id}
+            title={m.title}
+            subject={m.subject}
+            unitType={m.unitType}
+            totalCount={m.totalCount}
+            /* --- 進捗表示 --- */
+            planCount={m.dailyPlan}
+            done={m.completed}
+            startDate={m.startDate}
+            deadline={m.deadline}
+            /* --- 操作 --- */
             editable={false}
-            onEdit={() => handleEdit(m as Material)}
-            onDelete={() => handleDelete(m as Material)}
+            onEdit={() => handleEdit(m)}
+            onDelete={() => handleDelete(m)}
           />
         ))}
       </section>
     </main>
   );
 }
-
-
-
-
-// 'use client';
-
-// import React, { useEffect, useState } from 'react';
-// import dayjs from 'dayjs';
-// import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
-// import { useForm, Controller } from 'react-hook-form';
-// import {
-//   collection,
-//   addDoc,
-//   doc,
-//   setDoc,
-//   onSnapshot,
-//   orderBy,
-//   query,
-//   serverTimestamp,
-// } from 'firebase/firestore';
-
-// import { db } from '@/lib/firebase';
-// import InputSingle from '@/components/InputSingle';
-// import { clsx } from 'clsx';  
-// import RadioGroup  from '@/components/RadioGroup';
-// import StudyMaterialCard, { UnitType } from '@/components/StudyMaterialCard';
-
-// dayjs.extend(isSameOrBefore);
-
-// /* ---------------- 型 ---------------- */
-// interface FormValues {
-//   title: string;
-//   unitType: UnitType;
-//   totalCount: number;
-//   startDate: string;   // YYYY-MM-DD
-//   deadline: string;    // YYYY-MM-DD
-//   dailyPlan: number;   // 自動計算
-// }
-
-// export default function MaterialPage() {
-//   const uid = 'demoUser';
-
-//   /* ---------------- フォーム ---------------- */
-//   const {
-//     register,
-//     control,
-//     watch,
-//     setValue,
-//     handleSubmit,
-//     reset,
-//     formState: { isValid, errors },
-//   } = useForm<FormValues>({
-//     mode: 'onChange',
-//     defaultValues: {
-//       title: '',
-//       unitType: 'pages',
-//       totalCount: 0,
-//       startDate:  dayjs().format('YYYY-MM-DD'),
-//       deadline:   '',
-//       dailyPlan:  0,
-//     },
-//   });
-
-//   /* ----- dailyPlan 自動計算 ----- */
-//   const totalCount = watch('totalCount');
-//   const startDate  = watch('startDate');
-//   const deadline   = watch('deadline');
-
-//   useEffect(() => {
-//     if (!totalCount || !startDate || !deadline) {
-//       setValue('dailyPlan', 0, { shouldValidate: true });
-//       return;
-//     }
-//     const days =
-//       dayjs(deadline).startOf('day').diff(dayjs(startDate).startOf('day'), 'day') + 1;
-//     setValue('dailyPlan', days > 0 ? Math.ceil(totalCount / days) : 0,
-//       { shouldValidate: true });
-//   }, [totalCount, startDate, deadline, setValue]);
-
-//   /* ---------------- 一覧取得 ---------------- */
-//   const [list, setList] = useState<any[]>([]);
-
-//   useEffect(() => {
-//     const q = query(
-//       collection(db, 'users', uid, 'materials'),
-//       orderBy('createdAt', 'asc')
-//     );
-//     return onSnapshot(q, (snap) => {
-//       const arr: any[] = [];
-//       snap.forEach((d) => arr.push({ id: d.id, ...d.data() }));
-//       setList(arr);
-//     });
-//   }, []);
-
-//   /* ---------------- 送信 ---------------- */
-//   const onSubmit = async (data: FormValues) => {
-//     // ① materials に追加
-//     const matsCol = collection(db, 'users', uid, 'materials');
-//     const docRef  = await addDoc(matsCol, {
-//       ...data,
-//       createdAt: serverTimestamp(),
-//     });
-
-//     // ② 今日の todos/items にコピー（materialId を合わせる）
-//     const todayKey = dayjs().format('YYYYMMDD');
-//     await setDoc(
-//       doc(db, 'users', uid, 'todos', todayKey, 'items', docRef.id),
-//       {
-//         title:     data.title,
-//         unitType:  data.unitType,
-//         planCount: data.dailyPlan,
-//         done:      0,
-//       },
-//       { merge: true },
-//     );
-
-//     reset(); // フォーム初期化
-//   };
-
-//   /* ---------------- 画面 ---------------- */
-//   return (
-//     <main className="mx-auto max-w-md space-y-8 p-4">
-//       <h1 className="text-xl font-bold">新しい参考書を登録</h1>
-
-//       {/* ---------- 登録フォーム ---------- */}
-//       <form
-//         onSubmit={handleSubmit(onSubmit)}
-//         className="space-y-5 rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
-//       >
-//         {/* 参考書名 */}
-//         <div>
-//           <label className="block text-sm font-medium">参考書名</label>
-//           <input
-//             className="input-basic w-full max-w-none"
-//             {...register('title', { required: true })}
-//           />
-//         </div>
-
-//         {/* 単位 */}
-//         <div>
-//           <label className="block text-sm font-medium">単位</label>
-//           <Controller
-//             control={control}
-//             name="unitType"
-//             render={({ field }) => (
-//               <RadioGroup
-//                 options={[
-//                   { label: 'ページ', value: 'pages' },
-//                   { label: '問題',  value: 'problems' },
-//                 ]}
-//                 {...field}
-//               />
-//             )}
-//           />
-//         </div>
-
-//         {/* 総数 & １日あたり */}
-// <div className="flex gap-4">
-//   {/* ---- 総数 ---- */}
-//   <div className="flex-1">
-//     <label className="block text-sm font-medium">
-//       総{watch('unitType') === 'pages' ? 'ページ' : '問題'}数
-//     </label>
-//     <Controller
-//       control={control}
-//       name="totalCount"
-//       rules={{ min: 1 }}
-//       render={({ field }) => (
-//         <InputSingle {...field} className="w-full" />
-//       )}
-//     />
-//   </div>
-
-//   {/* ---- １日あたり（自動計算）---- */}
-//   <div className="flex-1">
-//     <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-//     <span>1日あたり</span>
-//     <span className="text-xs text-gray-500">自動計算</span>
-//   </div>
-
-
-//     {/* ただの表示用枠 */}
-//     <p className="h-[30px] flex items-center rounded-md bg-gray-50 px-3">
-//       {watch('dailyPlan') || 0}
-//     </p>
-   
-//   </div>
-// </div>
-
-
-
-//       {/* 開始日 & 目標達成日 */}
-// <div className="flex gap-4">
-//   {/* ---- 開始日 ---- */}
-//   <div className="flex-1">
-//     <label className="block text-sm font-medium">開始日</label>
-//     <input
-//       type="date"
-//       className="input-basic w-full"
-//       {...register('startDate', {
-//         required: true,
-//         validate: (v) =>
-//           dayjs(v).isSameOrBefore(dayjs(watch('deadline')), 'day') ||
-//           '開始日は終了日以前にしてください',
-//       })}
-//     />
-//   </div>
-
-//   {/* ---- 目標達成日 ---- */}
-//   <div className="flex-1">
-//     <label className="block text-sm font-medium">目標達成日</label>
-//     <input
-//       type="date"
-//       className="input-basic w-full"
-//       {...register('deadline', {
-//         required: true,
-//         validate: (v) =>
-//           dayjs(watch('startDate')).isSameOrBefore(dayjs(v), 'day') ||
-//           '開始日よりあとの日付を選択してください',
-//       })}
-//     />
-
-//     {/* エラーメッセージ */}
-//     {errors.deadline && (
-//       <span className="mt-1 block text-xs text-red-500">
-//         {errors.deadline.message ||
-//           '開始日よりあとの日付を選択してください'}
-//       </span>
-//     )}
-//   </div>
-// </div>
-
-
-//         {/* 保存 */}
-//         <button
-//           type="submit"
-//           disabled={!isValid || watch('dailyPlan') === 0}
-//           className="w-full rounded-md bg-indigo-600 py-2 text-sm font-semibold text-white disabled:opacity-40"
-//         >
-//           保存
-//         </button>
-//       </form>
-
-//       {/* ---------- 登録済み ---------- */}
-//       <section className="space-y-3">
-//         <h1 className="text-xl font-bold">登録済みの参考書</h1>
-//         {list.map((m) => (
-//           <StudyMaterialCard
-//             key={m.id}
-//             id={m.id}
-//             title={m.title}
-//             unitType={m.unitType}
-//             planCount={m.dailyPlan}
-//             totalCount={m.totalCount}
-//             startDate={m.startDate}
-//             deadline={m.deadline}
-//             editable={false}
-//           />
-//         ))}
-//       </section>
-//     </main>
-//   );
-// }
-
