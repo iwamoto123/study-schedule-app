@@ -1,17 +1,14 @@
 {
   "compilerOptions": {
-    "module": "NodeNext",
-    "esModuleInterop": true,
-    "moduleResolution": "nodenext",
-    "noImplicitReturns": true,
-    "noUnusedLocals": true,
+    "target": "ES2020",
+    "module": "CommonJS",
+    "lib": ["ES2020", "DOM", "ESNext.Disposable"],  
     "outDir": "lib",
-    "sourceMap": true,
+    "rootDir": "src",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
     "strict": true,
-    "target": "es2017"
+    "skipLibCheck": false            
   },
-  "compileOnSave": true,
-  "include": [
-    "src"
-  ]
+  "include": ["src/**/*"]
 }
