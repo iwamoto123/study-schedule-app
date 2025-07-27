@@ -1,39 +1,46 @@
-// app/progress/page.tsx
-
+// app/(tabs)/progress/page.tsx
 'use client';
 
-import React, {
-  useCallback,
+import {
+  useState,
   useEffect,
   useMemo,
-  useState,
+  useCallback,
 } from 'react';
 import { format } from 'date-fns';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
 import {
   collection,
-  onSnapshot,
-  orderBy,
   query,
+  orderBy,
+  onSnapshot,
 } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import ProgressSummary from '@/components/ProgressSummary';
-import TomorrowPlan     from '@/components/TomorrowPlan';
-import { db }           from '@/lib/firebase';
-import { saveProgress } from '@/lib/saveProgress';
-import RangeSlider      from '@/components/RangeSlider';
-import InputSingle      from '@/components/InputSingle';
-import { subjectLabel, unitLabel } from '@/components/StudyMaterialCard';
-import type { Material } from '@/types/material';
+import { auth, db }      from '@/lib/firebase';
 import { calcTodayPlan } from '@/lib/calcTodayPlan';
+import { saveProgress }  from '@/lib/saveProgress';
 
+import ProgressSummary from '@/components/ProgressSummary';
+import TomorrowPlan    from '@/components/TomorrowPlan';
+import RangeSlider     from '@/components/RangeSlider';
+import InputSingle     from '@/components/InputSingle';
+import {
+  subjectLabel,
+  unitLabel,
+} from '@/components/StudyMaterialCard';
+
+import type { Material } from '@/types/material';
 import type { TodoItem } from '@/types/todo';
+
+import { useAuthState } from 'react-firebase-hooks/auth';
 
 dayjs.locale('ja');
 
-/* ---------- 型 ---------- */
+/* ------------------------------------------------------------------ */
+/*                               型                                  */
+/* ------------------------------------------------------------------ */
 export type CardData = {
   id: string;
   title: string;
@@ -49,15 +56,122 @@ export type CardData = {
   prevEnd: number | null;
 };
 
-/* ---------- 回転アニメーション (X 軸フリップ) ---------- */
+type FirestoreMat  = Omit<Material, 'id'>;
+type FirestoreTodo = Omit<TodoItem,  'id'>;
+
+interface Todo {
+  doneStart?: number | null;
+  doneEnd?:   number | null;
+}
+
+interface TomorrowCard {
+  id: string;
+  title: string;
+  subject: string;
+  unitType: string;
+  planStart: number;
+  planEnd: number;
+}
+
+/* 回転アニメーション */
 const flipVariants = {
   initial: { rotateX: 90, opacity: 0 },
-  animate: { rotateX: 0, opacity: 1, transition: { duration: 0.1, ease: [0.4, 0.0, 0.2, 1] } },
-  exit:    { rotateX: -90, opacity: 0, transition: { duration: 0.1, ease: [0.4, 0.0, 0.2, 1] } },
+  animate: { rotateX: 0,  opacity: 1,
+             transition: { duration: 0.1, ease: [0.4, 0.0, 0.2, 1] } },
+  exit   : { rotateX: -90, opacity: 0,
+             transition: { duration: 0.1, ease: [0.4, 0.0, 0.2, 1] } },
 } as const;
 
 /* ------------------------------------------------------------------ */
-/** 1 教材ぶんのカード */
+/*                             ヘルパー                               */
+/* ------------------------------------------------------------------ */
+const donePages = (todo?: Todo) =>
+  todo?.doneStart != null && todo?.doneEnd != null
+    ? todo.doneEnd - todo.doneStart + 1
+    : 0;
+
+/* 今日のカード生成 -------------------------------------------------- */
+export function generateTodayCards(
+  materials: Record<string, Material>,
+  todos: Record<string, Todo>,
+): CardData[] {
+  return Object.values(materials).map(mat => {
+    const todo = todos[mat.id];
+
+    const todayDone      = donePages(todo);
+    const completedStart = Math.max(0, (mat.completed ?? 0) - todayDone);
+
+    const todayPlan = calcTodayPlan({
+      totalCount: mat.totalCount,
+      completed : completedStart,
+      deadline  : mat.deadline,
+    });
+
+    const plannedStart = completedStart + 1;
+    const plannedEnd   = Math.min(plannedStart + todayPlan - 1, mat.totalCount);
+
+    return {
+      id           : mat.id,
+      title        : mat.title,
+      subject      : mat.subject,
+      unitType     : mat.unitType,
+      totalStart   : 1,
+      totalEnd     : mat.totalCount,
+      plannedStart,
+      plannedEnd,
+      doneStart    : todo?.doneStart ?? null,
+      doneEnd      : todo?.doneEnd   ?? null,
+      prevStart    : todo?.doneStart ?? null,
+      prevEnd      : todo?.doneEnd   ?? null,
+    };
+  });
+}
+
+/* 明日のカード生成 -------------------------------------------------- */
+export function generateTomorrowCards(
+  materials: Record<string, Material>,
+  todos: Record<string, Todo>,
+): TomorrowCard[] {
+  return Object.values(materials).flatMap(mat => {
+    const todo          = todos[mat.id];
+    const todayDone     = donePages(todo);
+    const baseCompleted = mat.completed ?? 0;
+
+    const todayPlanCnt = calcTodayPlan({
+      totalCount: mat.totalCount,
+      completed : baseCompleted,
+      deadline  : mat.deadline,
+    });
+
+    const completedAfterToday =
+      todayDone > 0 ? baseCompleted : baseCompleted + todayPlanCnt;
+
+    if (completedAfterToday >= mat.totalCount) return [];
+
+    const planCnt = calcTodayPlan(
+      { totalCount: mat.totalCount,
+        completed : completedAfterToday,
+        deadline  : mat.deadline },
+      dayjs().add(1, 'day'),
+    );
+
+    const planStart = completedAfterToday + 1;
+    const planEnd   = Math.min(planStart + planCnt - 1, mat.totalCount);
+
+    return [{
+      id: mat.id,
+      title:   mat.title,
+      subject: mat.subject,
+      unitType: mat.unitType,
+      planStart,
+      planEnd,
+    }];
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/*                         1 教材ぶんのカード                          */
+/* ------------------------------------------------------------------ */
 function MaterialCard({
   data,
   todayDisp,
@@ -68,24 +182,17 @@ function MaterialCard({
   onSave: (args: {
     id: string;
     doneStart: number | null;
-    doneEnd: number | null;
+    doneEnd : number | null;
     prevStart: number | null;
-    prevEnd: number | null;
+    prevEnd  : number | null;
   }) => Promise<void>;
 }) {
   const {
-    id,
-    title,
-    subject,
-    unitType,
-    totalStart,
-    totalEnd,
-    plannedStart,
-    plannedEnd,
-    doneStart,
-    doneEnd,
-    prevStart,
-    prevEnd,
+    id, title, subject, unitType,
+    totalStart, totalEnd,
+    plannedStart, plannedEnd,
+    doneStart, doneEnd,
+    prevStart, prevEnd,
   } = data;
 
   const unit   = unitLabel[unitType as keyof typeof unitLabel];
@@ -95,21 +202,22 @@ function MaterialCard({
   const [start, setStart]     = useState(doneStart ?? plannedStart);
   const [end,   setEnd]       = useState(doneEnd   ?? plannedEnd);
 
-  /* ----- 保存 ----- */
+  const clamp = (v: number, min: number, max: number) =>
+    Math.min(Math.max(v, min), max);
+
+  const handleStartChange = (v: number) =>
+    Number.isInteger(v) && setStart(clamp(v, totalStart, end));
+
+  const handleEndChange = (v: number) =>
+    Number.isInteger(v) && setEnd(clamp(v, start, totalEnd));
+
   const handleSave = async () => {
     await onSave({ id, doneStart: start, doneEnd: end, prevStart, prevEnd });
     setEditing(false);
   };
 
-  /* ----- 整数入力ガード ----- */
-  const clamp = (v:number,min:number,max:number)=>Math.min(Math.max(v,min),max);
-  const handleStartChange = (v:number)=>Number.isInteger(v)&&setStart(clamp(v,totalStart,end));
-  const handleEndChange   = (v:number)=>Number.isInteger(v)&&setEnd  (clamp(v,start,totalEnd));
-
-  /* ---------------------------------------------------------------- */
   return (
     <AnimatePresence mode="wait">
-      {/* ===== 完了ビュー ===== */}
       {isDone && !editing && (
         <motion.section
           key="done"
@@ -123,7 +231,6 @@ function MaterialCard({
         >
           <span className="absolute right-2 top-2 select-none text-lg">✅</span>
 
-          {/* 科目 & タイトル */}
           <p className="text-center text-xs font-medium text-indigo-600">
             {subjectLabel[subject as keyof typeof subjectLabel]}
           </p>
@@ -131,20 +238,22 @@ function MaterialCard({
             {title}
           </h3>
 
-          {/* 入力済み表示 */}
-          <p className="text-center text-sm font-semibold text-gray-700">入力済み</p>
+          <p className="text-center text-sm font-semibold text-gray-700">
+            入力済み
+          </p>
           <p className="text-center text-sm text-gray-700">
             {todayDisp}{' '}
             {doneStart === doneEnd
-             ? `${doneStart}${unit}`
-             : `${doneStart}〜${doneEnd}${unit}`}
+              ? `${doneStart}${unit}`
+              : `${doneStart}〜${doneEnd}${unit}`}
           </p>
 
-          <p className="text-center text-xs text-gray-500">（タップして再編集）</p>
+          <p className="text-center text-xs text-gray-500">
+            （タップして再編集）
+          </p>
         </motion.section>
       )}
 
-      {/* ===== 編集ビュー ===== */}
       {(!isDone || editing) && (
         <motion.section
           key="edit"
@@ -162,7 +271,9 @@ function MaterialCard({
 
           {/* タイトル & ノルマ */}
           <div className="flex items-start justify-between">
-            <h3 className="break-words text-lg font-bold text-gray-900">{title}</h3>
+            <h3 className="break-words text-lg font-bold text-gray-900">
+              {title}
+            </h3>
             <span className="text-sm text-gray-700">
               今日のノルマ：{plannedEnd - plannedStart + 1} {unit}
             </span>
@@ -172,16 +283,24 @@ function MaterialCard({
           <p className="text-xs text-gray-600">
             合計 {totalEnd} {unit} ｜ 今日の予定：
             {plannedStart === plannedEnd
-             ? `${plannedStart}${unit}`
-             : `${plannedStart} ～ ${plannedEnd} ${unit}`}
+              ? `${plannedStart}${unit}`
+              : `${plannedStart} ～ ${plannedEnd} ${unit}`}
           </p>
 
           {/* 手入力 */}
           <div className="flex items-center gap-2 text-sm">
             <span className="text-xs text-gray-500">今日やった範囲：</span>
-            <InputSingle value={start} onChange={handleStartChange} className="w-12 text-center" />
+            <InputSingle
+              value={start}
+              onChange={handleStartChange}
+              className="w-12 text-center"
+            />
             <span>～</span>
-            <InputSingle value={end} onChange={handleEndChange} className="w-12 text-center" />
+            <InputSingle
+              value={end}
+              onChange={handleEndChange}
+              className="w-12 text-center"
+            />
             <span>{unit}</span>
           </div>
 
@@ -191,7 +310,7 @@ function MaterialCard({
               min={totalStart}
               max={totalEnd}
               value={{ start, end }}
-              onChange={({ start:s, end:e }) => {
+              onChange={({ start: s, end: e }) => {
                 if (s !== start) setStart(s);
                 if (e !== end)   setEnd(e);
               }}
@@ -215,154 +334,98 @@ function MaterialCard({
 }
 
 /* ------------------------------------------------------------------ */
-/** ページ本体 */
+/*                           ページ本体                               */
+/* ------------------------------------------------------------------ */
 export default function ProgressPage() {
-  const uid        = 'demoUser';
-  const todayKey   = format(new Date(), 'yyyyMMdd');
-  const todayDisp  = dayjs().format('M/D(ddd)');
+  /* 🔸 全 Hook を冒頭で呼び出す */
+  const [user, authLoading] = useAuthState(auth);
+
+  const todayKey  = format(new Date(), 'yyyyMMdd');
+  const todayDisp = dayjs().format('M/D(ddd)');
 
   const [materials, setMaterials] = useState<Record<string, Material>>({});
   const [todos,     setTodos]     = useState<Record<string, TodoItem>>({});
 
-  /* ----- Firestore 購読 ----- */
+  /* materials 購読（uid 必須なので user が無い時はスキップ） */
   useEffect(() => {
-    const q = query(collection(db, 'users', uid, 'materials'), orderBy('createdAt', 'asc'));
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'users', user.uid, 'materials'),
+      orderBy('createdAt', 'asc'),
+    );
+
     return onSnapshot(q, snap => {
       const map: Record<string, Material> = {};
-      snap.forEach(d => {
-        const m = { id: d.id, ...(d.data() as any) } as Material;
-        m.todayPlan = calcTodayPlan(m); // 参考として保持（グラフ等に使うなら）
-        map[d.id]   = m;
+      snap.forEach(docSnap => {
+        const data = docSnap.data() as FirestoreMat;
+        const m: Material = { ...data, id: docSnap.id };
+        m.todayPlan = calcTodayPlan(m);
+        map[m.id]   = m;
       });
       setMaterials(map);
     });
-  }, [uid]);
+  }, [user]);
 
+  /* todos 購読 */
   useEffect(() => {
-    const col = collection(db, 'users', uid, 'todos', todayKey, 'items');
+    if (!user) return;
+
+    const col = collection(db, 'users', user.uid, 'todos', todayKey, 'items');
     return onSnapshot(col, snap => {
       const map: Record<string, TodoItem> = {};
-      snap.forEach(d => (map[d.id] = { id: d.id, ...(d.data() as any) }));
+      snap.forEach(docSnap => {
+        const data = docSnap.data() as FirestoreTodo;
+        map[docSnap.id] = { ...data, id: docSnap.id };
+      });
       setTodos(map);
     });
-  }, [uid, todayKey]);
+  }, [user, todayKey]);
 
-  /* ----- カードデータ生成（今日） ----- */
-  const cards: CardData[] = useMemo(() =>
-    Object.values(materials).map(mat => {
-      const todo = todos[mat.id];
+  /* カード生成 */
+  const cards = useMemo(
+    () => generateTodayCards(materials, todos),
+    [materials, todos],
+  );
 
-      /* ① 今日入力済みページ数 */
-      const doneSpan =
-        todo?.doneStart != null && todo?.doneEnd != null
-          ? todo.doneEnd - todo.doneStart + 1
-          : 0;
+  const tomorrowCards = useMemo(
+    () => generateTomorrowCards(materials, todos),
+    [materials, todos],
+  );
 
-      /* ② 今朝時点 completed */
-      const baseCompleted = (mat.completed ?? 0) - doneSpan;
-
-      /* ③ calcTodayPlan でノルマを統一計算 */
-      const todayPlan = calcTodayPlan({
-        totalCount: mat.totalCount,
-        completed:  baseCompleted,
-        deadline:   mat.deadline,
-      });
-
-      const planStart = baseCompleted + 1;
-      const planEnd   = Math.min(planStart + todayPlan - 1, mat.totalCount);
-
-      return {
-        id: mat.id,
-        title: mat.title,
-        subject: mat.subject,
-        unitType: mat.unitType,
-        totalStart: 1,
-        totalEnd: mat.totalCount,
-
-        plannedStart: planStart,
-        plannedEnd:   planEnd,
-
-        doneStart: todo?.doneStart ?? null,
-        doneEnd:   todo?.doneEnd   ?? null,
-        prevStart: todo?.doneStart ?? null,
-        prevEnd:   todo?.doneEnd   ?? null,
-      } as CardData;
-    }),
-  [materials, todos]);
-
-
-/* ----- 明日の予定カード生成 ----- */
-const tomorrowCards = useMemo(() => {
-  return Object.values(materials).flatMap(mat => {
-    // ① すでに完了している量
-    const completedNow = mat.completed ?? 0;
-    if (completedNow >= mat.totalCount) return [];      // 全部終わっている教材は除外
-
-    // ② 今日やるべき量（期待値）を再計算
-    const todayPlanCnt = calcTodayPlan(
-      { totalCount: mat.totalCount, completed: completedNow, deadline: mat.deadline },
-      dayjs(),                                         // きょう基準
-    );
-
-    // ③ 今日が終わった時点の累積完了量
-    const completedEndOfToday = Math.min(
-      completedNow + todayPlanCnt,
-      mat.totalCount,
-    );
-
-    // ④ 明日のノルマを計算（基準日を「明日」に）
-    const tomorrow      = dayjs().add(1, 'day');
-    const tmwPlanCnt    = calcTodayPlan(
-      {
-        totalCount: mat.totalCount,
-        completed:  completedEndOfToday,
-        deadline:   mat.deadline,
-      },
-      tomorrow,
-    );
-
-    // ⑤ 明日の開始/終了ページ
-    const planStart = completedEndOfToday + 1;
-    const planEnd   = Math.min(planStart + tmwPlanCnt - 1, mat.totalCount);
-
-    return [{
-      id:    mat.id,
-      title: mat.title,
-      subject:  mat.subject,
-      unitType: mat.unitType,
-      /* TomorrowPlan コンポーネントが期待する値 */
-      planStart,
-      planEnd,
-    }];
-  });
-}, [materials]);
-
-
-
-  /* ----- 保存ハンドラ ----- */
-  const handleSave = useCallback(async (args: {
+  /* 保存 */
+  const handleSave = useCallback(async ({
+    id, doneStart, doneEnd, prevStart, prevEnd,
+  }: {
     id: string;
     doneStart: number | null;
-    doneEnd: number | null;
+    doneEnd  : number | null;
     prevStart: number | null;
-    prevEnd: number | null;
+    prevEnd  : number | null;
   }) => {
-    await saveProgress({
-      uid,
-      materialId: args.id,
-      newStart:   args.doneStart ?? 0,
-      newEnd:     args.doneEnd   ?? 0,
-      prevStart:  args.prevStart,
-      prevEnd:    args.prevEnd,
-    });
-  }, [uid]);
+    if (!user) return;
 
-  /* ----- 描画 ----- */
+    await saveProgress({
+      uid        : user.uid,
+      materialId : id,
+      newStart   : doneStart ?? 0,
+      newEnd     : doneEnd   ?? 0,
+      prevStart,
+      prevEnd,
+    });
+  }, [user]);
+
+  /* 早期リターンは最終段階（JSX 部分の直前）で行う */
+  if (authLoading) return <p className="p-4">読み込み中...</p>;
+  if (!user)       return <p className="p-4">ログインしてください</p>;
+
+  /* 画面 */
   return (
     <main className="mx-auto w-full max-w-none flex flex-col gap-4 p-4 sm:max-w-lg">
-      <h1 className="mb-4 text-2xl font-bold">今日の進捗入力 {todayDisp}</h1>
+      <h1 className="mb-4 text-2xl font-bold">
+        今日の進捗入力 {todayDisp}
+      </h1>
 
-      {/* --- 今日のカード --- */}
       {cards.map(c => (
         <MaterialCard
           key={c.id}
@@ -372,14 +435,13 @@ const tomorrowCards = useMemo(() => {
         />
       ))}
 
-      {/* --- 今日の進捗まとめ --- */}
       <ProgressSummary items={cards} />
-
-      {/* --- 明日の予定 --- */}
       <TomorrowPlan items={tomorrowCards} />
 
       {cards.length === 0 && (
-        <p className="text-center text-sm text-gray-500">登録された教材がありません</p>
+        <p className="text-center text-sm text-gray-500">
+          登録された教材がありません
+        </p>
       )}
     </main>
   );

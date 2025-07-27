@@ -1,9 +1,15 @@
-// scripts/seed.ts
-// ---------------------------------------------
-// Cloud Firestore エミュレータ／本番どちらでも使える
-// テストデータ一括投入ユーティリティ
-// ---------------------------------------------
-import { initializeApp, type FirebaseApp } from 'firebase/app';
+// app/scripts/seeds.ts
+// -------------------------------------------------------------
+// Cloud Firestore にテストデータを一括投入するユーティリティ
+//   - エミュレータ／本番どちらでも使用可
+//   - NEXT_PUBLIC_FIREBASE_CONFIG（JSON 文字列）が必須
+// -------------------------------------------------------------
+import {
+  initializeApp,
+  getApp,
+  FirebaseApp,
+  type FirebaseOptions,
+} from 'firebase/app';
 import {
   getFirestore,
   collection,
@@ -13,64 +19,62 @@ import {
 } from 'firebase/firestore';
 import dayjs from 'dayjs';
 
-// ─────────────────────────────────────────────
-// 1. Firebase 設定を環境変数から取得
-//    NEXT_PUBLIC_FIREBASE_CONFIG は .env.local に JSON 文字列で入っている想定
-// ─────────────────────────────────────────────
+/* ------------------------------------------------------------------
+ * 1. Firebase 設定を環境変数から取得
+ * ----------------------------------------------------------------- */
 const rawConfig = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
 if (!rawConfig) {
-  console.error('❌  環境変数 NEXT_PUBLIC_FIREBASE_CONFIG が見つかりません');
+  // 環境変数がない場合は即終了
+  console.error('❌  NEXT_PUBLIC_FIREBASE_CONFIG が設定されていません');
   process.exit(1);
 }
-const firebaseConfig = JSON.parse(rawConfig);
+const firebaseConfig = JSON.parse(rawConfig) as FirebaseOptions;
 
-// ─────────────────────────────────────────────
-// 2. 初期化
-// ─────────────────────────────────────────────
+/* ------------------------------------------------------------------
+ * 2. Firebase 初期化（重複エラー対策あり）
+ * ----------------------------------------------------------------- */
 let app: FirebaseApp;
 try {
   app = initializeApp(firebaseConfig);
-} catch (e: any) {
-  // initializeApp を複数回呼んでもいいように再利用
-  if (e.code === 'app/duplicate-app') {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore – getApp は import しなくて OK
-    app = (await import('firebase/app')).getApp();
+} catch (err: unknown) {
+  // 既に初期化済みなら再利用
+  const maybeDup = err as { code?: string };
+  if (maybeDup.code === 'app/duplicate-app') {
+    app = getApp();
   } else {
-    console.error('❌  Firebase 初期化に失敗しました', e);
+    console.error('❌  Firebase 初期化に失敗しました', err);
     process.exit(1);
   }
 }
 const db = getFirestore(app);
 
-// ─────────────────────────────────────────────
-// 3. パラメータ
-// ─────────────────────────────────────────────
-const uid = 'demoUser';
+/* ------------------------------------------------------------------
+ * 3. スクリプト用のパラメータ
+ * ----------------------------------------------------------------- */
+const uid      = 'demoUser';                       // ← 必要なら変更
+const dateKey  = dayjs().format('YYYYMMDD');       // 例: 20250726
+const baseCol  = collection(db, 'users', uid, 'todos', dateKey, 'items');
 
-// 例: 2025-05-31 → 20250531
-const dateKey = dayjs().format('YYYYMMDD');
-
-const baseCol = collection(db, 'users', uid, 'todos', dateKey, 'items');
-
-// ─────────────────────────────────────────────
-// 4. データ定義 – 必要ならここを書き換える
-// ─────────────────────────────────────────────
-const seedItems: {
+/* ------------------------------------------------------------------
+ * 4. テスト投入したいデータ
+ * ----------------------------------------------------------------- */
+type SeedItem = {
   id: string;
   title: string;
   unitType: 'pages' | 'problems' | 'words' | 'chapters' | 'none';
   planCount: number;
   done: number;
-}[] = [
+};
+
+const seedItems: SeedItem[] = [
   { id: 'taskA', title: '参考書A', unitType: 'pages',    planCount: 10, done: 0 },
   { id: 'taskB', title: '参考書B', unitType: 'problems', planCount: 20, done: 0 },
   { id: 'taskC', title: '参考書C', unitType: 'pages',    planCount:  5, done: 0 },
 ];
 
-// ─────────────────────────────────────────────
-// 5. 書き込み
-// ─────────────────────────────────────────────
+/* ------------------------------------------------------------------
+ * 5. Firestore へ書き込み
+ * ----------------------------------------------------------------- */
 (async () => {
   try {
     await Promise.all(

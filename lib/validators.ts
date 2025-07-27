@@ -1,5 +1,4 @@
-///lib/validators.ts
-
+// lib/validators.ts
 /* =======================================================================
  * 共通ユーティリティ ― 型安全な数値チェック & クランプ
  * ===================================================================== */
@@ -12,58 +11,81 @@ export const clampNumber = (v: number, min: number, max: number) =>
 /* =======================================================================
  * Firestore から取得した Todo ドキュメントのバリデーション
  * ===================================================================== */
+export type UnitType =
+  | 'pages'
+  | 'problems'
+  | 'words'
+  | 'chapters'
+  | 'none';
+
 export interface ValidatedTodo {
   id:          string;
   title:       string;
   unitType:    UnitType;
+  /** きょう開始ページ */
   plannedStart: number;
+  /** きょう終了ページ */
   plannedEnd:   number;
+  /** 教材全体開始ページ */
   totalStart:   number;
+  /** 教材全体終了ページ */
   totalEnd:     number;
+  /** きょうのノルマ数 */
   planCount:    number;
+  /** 入力済み開始ページ（なければ null） */
   doneStart:    number | null;
+  /** 入力済み終了ページ（なければ null） */
   doneEnd:      number | null;
 }
 
-export type UnitType =
-  | 'pages' | 'problems' | 'words' | 'chapters' | 'none';
-
+/* ------------------------------------------------------------------ */
 /**
  * 不正値を持つドキュメントを弾き、型を絞り込んで返す
- * - 数値フィールドが欠損 / NaN / Infinity → false
- * - planCount ≤ 0 または totalStart > totalEnd → false
- * - plannedEnd が undefined の場合は   plannedStart + planCount - 1 を補完
+ *
+ * - 数値フィールドが欠損 / NaN / Infinity → null
+ * - planCount ≤ 0 または totalStart > totalEnd → null
+ * - plannedEnd が未定義なら plannedStart + planCount - 1 を補完
  */
 export const validateTodo = (
-  src: any,         // Firestore の生データ
+  // Firestore の生データ（unknown とし、都度チェック）
+  src: unknown,
   id:  string,
 ): ValidatedTodo | null => {
-  const nums = [
-    src.planCount,
-    src.plannedStart,
-    src.totalStart,
-    src.totalEnd,
-  ];
+  if (src === null || typeof src !== 'object') return null;
 
-  if (nums.some(n => !isFiniteNumber(n))) return null;
-  if (src.planCount <= 0) return null;
-  if (src.totalStart > src.totalEnd) return null;
+  // Record<string, unknown> にキャストして読み取る
+  const obj = src as Record<string, unknown>;
 
-  const plannedStart = src.plannedStart;
-  const plannedEnd   = isFiniteNumber(src.plannedEnd)
-    ? src.plannedEnd
-    : plannedStart + src.planCount - 1;
+  // まず必要な数値を取り出し
+  const planCount   = obj.planCount;
+  const plannedStart = obj.plannedStart;
+  const totalStart   = obj.totalStart;
+  const totalEnd     = obj.totalEnd;
+
+  const numericFields = [planCount, plannedStart, totalStart, totalEnd];
+
+  // 数値チェック
+  if (numericFields.some(n => !isFiniteNumber(n))) return null;
+  if ((planCount as number) <= 0) return null;
+  if ((totalStart as number) > (totalEnd as number)) return null;
+
+  // plannedEnd が数値でない場合は補完
+  const plannedEndRaw = obj.plannedEnd;
+  const plannedEnd =
+    isFiniteNumber(plannedEndRaw)
+      ? plannedEndRaw
+      : (plannedStart as number) + (planCount as number) - 1;
 
   return {
     id,
-    title:        String(src.title ?? ''),
-    unitType:     (src.unitType ?? 'none') as UnitType,
-    plannedStart,
-    plannedEnd,
-    totalStart:   src.totalStart,
-    totalEnd:     src.totalEnd,
-    planCount:    src.planCount,
-    doneStart:    isFiniteNumber(src.doneStart) ? src.doneStart : null,
-    doneEnd:      isFiniteNumber(src.doneEnd)   ? src.doneEnd   : null,
+    title       : String(obj.title ?? ''),
+    unitType    : (obj.unitType ?? 'none') as UnitType,
+    plannedStart: plannedStart as number,
+    plannedEnd  : plannedEnd,
+    totalStart  : totalStart as number,
+    totalEnd    : totalEnd as number,
+    planCount   : planCount as number,
+    doneStart   : isFiniteNumber(obj.doneStart) ? (obj.doneStart as number) : null,
+    doneEnd     : isFiniteNumber(obj.doneEnd)   ? (obj.doneEnd   as number) : null,
   };
 };

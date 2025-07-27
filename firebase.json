@@ -3,8 +3,11 @@
     "firestore": {
       "port": 8080
     },
+    "auth": {
+      "port": 9099
+    },
     "functions": {
-      "port": 0
+      "port": 5001
     },
     "hosting": {
       "port": 5000
@@ -22,33 +25,8 @@
       "**/node_modules/**"
     ],
     "frameworksBackend": {
-      "region": "asia-northeast1",
-      "memory": "1GiB"
-    },
-    "headers": [
-      {
-        "source": "**/*",
-        "headers": [
-          {
-            "key": "X-Content-Type-Options",
-            "value": "nosniff"
-          },
-          {
-            "key": "X-XSS-Protection",
-            "value": "1; mode=block"
-          }
-        ]
-      },
-      {
-        "source": "**/*",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "max-age=0"
-          }
-        ]
-      }
-    ]
+      "region": "asia-east1"
+    }
   },
   "functions": [
     {

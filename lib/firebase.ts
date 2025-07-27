@@ -1,42 +1,64 @@
-// lib/firebase.ts
+/* =====================================================================
+ * Firebase クライアント初期化 & 開発時エミュレータ接続
+ *   - Client Component 専用（`'use client'`）
+ *   - Firestore / Auth のみ使用
+ * =================================================================== */
 'use client';
 
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  initializeApp,
+  getApps,
+  getApp,
+  type FirebaseOptions,
+} from 'firebase/app';
+
 import {
   initializeFirestore,
   connectFirestoreEmulator,
 } from 'firebase/firestore';
 
-/* ==========================================================
- * 1. FirebaseConfig は .env から取得
- * ========================================================= */
+import {
+  getAuth,
+  connectAuthEmulator,
+} from 'firebase/auth';
+
+/* -------------------------------------------------------------------
+ * 1. FirebaseConfig を .env から取得
+ *    .env.local 例）
+ *      NEXT_PUBLIC_FIREBASE_CONFIG='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}'
+ *      NEXT_PUBLIC_EMULATOR=true
+ * ------------------------------------------------------------------ */
 const firebaseConfig = JSON.parse(
   process.env.NEXT_PUBLIC_FIREBASE_CONFIG as string,
-);
+) as FirebaseOptions;
 
-
-/* ==========================================================
+/* -------------------------------------------------------------------
  * 2. Firebase App 初期化（既にあれば再利用）
- * ========================================================= */
-export const app =
-  getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+ * ------------------------------------------------------------------ */
+export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-/* ==========================================================
+/* -------------------------------------------------------------------
  * 3. Firestore 初期化
- *    - experimentalForceLongPolling: ネットワーク相性対策
- *    - 第3引数: databaseId（単一 DB なら省略可）
- * ========================================================= */
+ *    - experimentalAutoDetectLongPolling: ネットワーク相性自動判定
+ * ------------------------------------------------------------------ */
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+});
 
+/* -------------------------------------------------------------------
+ * 4. Authentication 初期化
+ * ------------------------------------------------------------------ */
+export const auth = getAuth(app);
 
-export const db = initializeFirestore(
-  app,
-  { experimentalForceLongPolling: true }
-);
-
-/* ==========================================================
- * 4. 開発時は Emulator に接続
- *    .env.local ⇒ NEXT_PUBLIC_EMULATOR=true
- * ========================================================= */
+/* -------------------------------------------------------------------
+ * 5. 開発時は Firestore / Auth エミュレータに接続
+ * ------------------------------------------------------------------ */
 if (process.env.NEXT_PUBLIC_EMULATOR === 'true') {
+  /* Firestore → localhost:8080 */
   connectFirestoreEmulator(db, 'localhost', 8080);
+
+  /* Auth → localhost:9099 */
+  connectAuthEmulator(auth, 'http://localhost:9099', {
+    disableWarnings: true,
+  });
 }

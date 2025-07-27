@@ -1,7 +1,7 @@
 // app/materials/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   collection,
   onSnapshot,
@@ -11,43 +11,51 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 
-import { db } from '@/lib/firebase';
-import StudyMaterialCard from '@/components/StudyMaterialCard';
-import MaterialForm      from '@/components/MaterialForm';
+import { db, auth }           from '@/lib/firebase';
+import { useAuthState }       from 'react-firebase-hooks/auth';
+import StudyMaterialCard      from '@/components/StudyMaterialCard';
+import MaterialForm           from '@/components/MaterialForm';
+import type { Material }      from '@/types/material';
 
-import type { Material } from '@/types/material';   // ← 共通型だけを import
-
+/* ------------------------------------------------------------
+ * Materials 一覧ページ
+ *   - Hook を条件分岐より前に置いて順序を固定
+ * ---------------------------------------------------------- */
 export default function MaterialsPage() {
-  const uid = 'demoUser';
+  /* ---------- 認証 ---------- */
+  const [user, authLoading] = useAuthState(auth);
 
-  /* ──────────────────────────────
-   * 編集モーダル用 state
-   * ────────────────────────────── */
+  /* ---------- State ---------- */
   const [editing, setEditing] = useState<Material | null>(null);
-  const closeModal  = ()      => setEditing(null);
-  const handleEdit  = (m: Material) => setEditing(m);
-  const handleDelete = async (m: Material) => {
-    if (!confirm(`「${m.title}」を削除します。よろしいですか？`)) return;
-    await deleteDoc(doc(db, 'users', uid, 'materials', m.id));
-    // TODO: todos 側も連動削除するならここで
-  };
+  const [list,    setList]    = useState<Material[]>([]);
 
-  /* ──────────────────────────────
-   * 一覧取得
-   * ────────────────────────────── */
-  const [list, setList] = useState<Material[]>([]);
+  /* ---------- コールバック ---------- */
+  const closeModal   = useCallback(() => setEditing(null), []);
+  const handleEdit   = useCallback((m: Material) => setEditing(m), []);
 
+  const handleDelete = useCallback(
+    async (m: Material) => {
+      if (!user) return;
+      if (!confirm(`「${m.title}」を削除します。よろしいですか？`)) return;
+      await deleteDoc(doc(db, 'users', user.uid, 'materials', m.id));
+      // TODO: todos 側も連動削除するならここで
+    },
+    [user],
+  );
+
+  /* ---------- Firestore 購読 ---------- */
   useEffect(() => {
+    if (!user) return; // 未ログイン時は購読しない
+
     const q = query(
-      collection(db, 'users', uid, 'materials'),
+      collection(db, 'users', user.uid, 'materials'),
       orderBy('createdAt', 'asc'),
     );
 
-    return onSnapshot(q, snap => {
+    const unsub = onSnapshot(q, snap => {
       const arr: Material[] = [];
       snap.forEach(d => {
         const data = d.data();
-
         arr.push({
           id:          d.id,
           title:       data.title,
@@ -55,7 +63,7 @@ export default function MaterialsPage() {
           unitType:    data.unitType,
           totalCount:  data.totalCount,
           dailyPlan:   data.dailyPlan ?? 0,
-          completed:   data.completed ?? 0,   // ★ 0 を補完
+          completed:   data.completed ?? 0,
           startDate:   data.startDate,
           deadline:    data.deadline,
           createdAt:   data.createdAt,
@@ -63,19 +71,23 @@ export default function MaterialsPage() {
       });
       setList(arr);
     });
-  }, [uid]);
 
-  /* ──────────────────────────────
-   * 画面
-   * ────────────────────────────── */
+    return unsub;
+  }, [user]);
+
+  /* ---------- 早期リターン ---------- */
+  if (authLoading) return <p className="p-4">読み込み中...</p>;
+  if (!user)       return null; // 未ログインなら何も表示しない
+
+  /* ---------- 画面 ---------- */
   return (
     <main className="mx-auto max-w-md space-y-8 p-4">
       <h1 className="text-xl font-bold">新しい参考書を登録</h1>
 
-      {/* ---------- 登録フォーム ---------- */}
-      <MaterialForm uid={uid} mode="create" onSaved={closeModal} />
+      {/* 登録フォーム */}
+      <MaterialForm uid={user.uid} mode="create" onSaved={closeModal} />
 
-      {/* ---------- 編集モーダル ---------- */}
+      {/* 編集モーダル */}
       {editing && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
@@ -86,7 +98,7 @@ export default function MaterialsPage() {
             onClick={e => e.stopPropagation()}
           >
             <MaterialForm
-              uid={uid}
+              uid={user.uid}
               mode="update"
               docId={editing.id}
               defaultValues={editing}
@@ -97,7 +109,7 @@ export default function MaterialsPage() {
         </div>
       )}
 
-      {/* ---------- 一覧 ---------- */}
+      {/* 一覧 */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">登録済みの参考書</h2>
 
