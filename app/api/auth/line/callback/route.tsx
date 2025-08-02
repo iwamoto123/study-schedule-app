@@ -28,10 +28,23 @@ const adminDb   = getFirestore();
 /* GET /api/auth/line/callback?code=...&state=...                      */
 /* ------------------------------------------------------------------ */
 export async function GET(req: NextRequest) {
-  /* ----- 呼び出し元オリジンを組み立て ----- */
-  const proto = req.headers.get('x-forwarded-proto') ?? 'http';
-  const host  = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
-  const base  = `${proto}://${host}`;
+  console.log('[LINE Callback] Started');
+  
+  try {
+    /* ----- 環境変数チェック ----- */
+    const requiredEnvs = ['LINE_CHANNEL_ID', 'LINE_CHANNEL_SECRET', 'GCP_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
+    for (const env of requiredEnvs) {
+      if (!process.env[env]) {
+        console.error(`[LINE Callback] Missing env: ${env}`);
+        return NextResponse.json({ error: `Missing ${env}` }, { status: 500 });
+      }
+    }
+    
+    /* ----- 呼び出し元オリジンを組み立て ----- */
+    const proto = req.headers.get('x-forwarded-proto') ?? 'http';
+    const host  = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+    const base  = `${proto}://${host}`;
+    console.log('[LINE Callback] Base URL:', base);
 
   /* ----- state / code 検証 ----- */
   const url    = new URL(req.url);
@@ -101,5 +114,14 @@ export async function GET(req: NextRequest) {
   /* ----- フロントへリダイレクト ----- */
   const redirect = new URL('/materials', base);
   redirect.searchParams.set('token', customToken);
+  console.log('[LINE Callback] Success, redirecting to:', redirect.toString());
   return NextResponse.redirect(redirect);
+  
+  } catch (error) {
+    console.error('[LINE Callback] Error:', error);
+    const proto = req.headers.get('x-forwarded-proto') ?? 'http';
+    const host  = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+    const base  = `${proto}://${host}`;
+    return NextResponse.redirect(`${base}/login?error=server`);
+  }
 }
