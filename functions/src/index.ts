@@ -9,6 +9,7 @@
 
 // functions/src/index.ts
 import { onRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import * as admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
@@ -20,6 +21,10 @@ if (!admin.apps.length) {
 
 const adminAuth = admin.auth();
 const adminDb = admin.firestore();
+
+// Define secrets for LINE configuration
+const lineChannelId = defineSecret("LINE_CHANNEL_ID");
+const lineChannelSecret = defineSecret("LINE_CHANNEL_SECRET");
 
 /**
  * Ping 用の簡単な HTTP 関数
@@ -38,17 +43,20 @@ export const hello = onRequest(
  * デプロイ後: https://<region>-<project-id>.cloudfunctions.net/lineCallback
  */
 export const lineCallback = onRequest(
-  { region: "asia-northeast1" },
+  { 
+    region: "asia-northeast1",
+    secrets: [lineChannelId, lineChannelSecret]
+  },
   async (req, res) => {
     logger.info("[LINE Callback] Started", { structuredData: true });
 
     try {
-      // Get configuration from environment variables
-      const lineChannelId = process.env.LINE_CHANNEL_ID;
-      const lineChannelSecret = process.env.LINE_CHANNEL_SECRET;
+      // Get configuration from secrets
+      const channelId = lineChannelId.value();
+      const channelSecret = lineChannelSecret.value();
       
       // Check required configuration
-      if (!lineChannelId || !lineChannelSecret) {
+      if (!channelId || !channelSecret) {
         logger.error("[LINE Callback] Missing LINE configuration");
         res.status(500).json({ error: "Missing LINE configuration" });
         return;
@@ -93,8 +101,8 @@ export const lineCallback = onRequest(
           grant_type: "authorization_code",
           code,
           redirect_uri: callbackUrl,
-          client_id: lineChannelId,
-          client_secret: lineChannelSecret,
+          client_id: channelId,
+          client_secret: channelSecret,
           code_verifier: codeVerifier,
         }),
       });

@@ -59,12 +59,10 @@ jobs:
           npm install
           npm run build
       
-      - name: Set Cloud Functions Environment Variables
+      - name: Set Cloud Functions Secrets
         run: |
-          firebase functions:config:set \
-            line.channel_id="${{ secrets.LINE_CHANNEL_ID }}" \
-            line.channel_secret="${{ secrets.LINE_CHANNEL_SECRET }}" \
-            --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
+          echo "${{ secrets.LINE_CHANNEL_ID }}" | firebase functions:secrets:set LINE_CHANNEL_ID --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
+          echo "${{ secrets.LINE_CHANNEL_SECRET }}" | firebase functions:secrets:set LINE_CHANNEL_SECRET --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
       
       - name: Deploy Cloud Functions (with retry)
         run: |
