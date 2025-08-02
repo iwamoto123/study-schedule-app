@@ -8,31 +8,18 @@
  */
 
 // functions/src/index.ts
-import { onRequest } from "firebase-functions/v2/https";
-import { logger }   from "firebase-functions";
+import * as functions from "firebase-functions";
 
 /**
  * Ping 用の簡単な HTTP 関数
  *   デプロイ後:  https://<project-id>.cloudfunctions.net/hello
  */
-export const hello = onRequest(
-  // ────────────────────────────────
-  //  v2 では region／memory／timeout などは
-  //  第 1 引数に “オプションオブジェクト” として渡します
-  // ────────────────────────────────
-  {
-    region : "asia-northeast1",   // 東京リージョン
-    memory : "256MiB",            // 例: メモリ制限を付けたい場合
-    timeoutSeconds : 60           // 例: タイムアウトを付けたい場合
-  },
-  // ────────────────────────────────
-  //  実装
-  // ────────────────────────────────
-  (req, res) => {
-    logger.info("Hello function called!", { structuredData: true });
-    res.status(200).send("Hello from Cloud Functions v2!");
-  }
-);
+export const hello = functions
+  .region("asia-northeast1")
+  .https.onRequest((req, res) => {
+    functions.logger.info("Hello function called!", { structuredData: true });
+    res.status(200).send("Hello from Cloud Functions!");
+  });
 
 
 // Start writing functions

@@ -2,27 +2,34 @@
  * app/api/auth/line/callback/route.ts         ★ファイル丸ごと貼り替え
  * ========================================================================= */
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 /** ★ これを追加 ── “絶対ダイナミック” 宣言 */
 export const dynamic  = 'force-dynamic';
 export const runtime  = 'nodejs';           // Edge では動かない Admin SDK 用
 
 /* ---------- Firebase Admin 初期化 (once) ---------- */
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId  : process.env.GCP_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey : process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-    projectId: process.env.GCP_PROJECT_ID!,
-  });
+if (!admin.apps.length) {
+  const projectId = process.env.GCP_PROJECT_ID || process.env.NEXT_PUBLIC_GCP_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  
+  if (projectId && clientEmail && privateKey) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      }),
+      projectId,
+    });
+  } else {
+    console.warn('Firebase Admin not initialized: missing environment variables');
+  }
 }
-const adminAuth = getAuth();
-const adminDb   = getFirestore();
+const adminAuth = admin.apps.length > 0 ? admin.auth() : null;
+const adminDb   = admin.apps.length > 0 ? admin.firestore() : null;
 
 /* ------------------------------------------------------------------ */
 /* GET /api/auth/line/callback?code=...&state=...                      */
@@ -31,8 +38,17 @@ export async function GET(req: NextRequest) {
   console.log('[LINE Callback] Started');
   
   try {
+    /* ----- Firebase Admin チェック ----- */
+    if (!adminAuth || !adminDb) {
+      console.error('[LINE Callback] Firebase Admin not initialized');
+      const proto = req.headers.get('x-forwarded-proto') ?? 'http';
+      const host  = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+      const base  = `${proto}://${host}`;
+      return NextResponse.redirect(`${base}/login?error=config`);
+    }
+    
     /* ----- 環境変数チェック ----- */
-    const requiredEnvs = ['LINE_CHANNEL_ID', 'LINE_CHANNEL_SECRET', 'GCP_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
+    const requiredEnvs = ['LINE_CHANNEL_ID', 'LINE_CHANNEL_SECRET'];
     for (const env of requiredEnvs) {
       if (!process.env[env]) {
         console.error(`[LINE Callback] Missing env: ${env}`);
