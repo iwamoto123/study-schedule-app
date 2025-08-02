@@ -62,10 +62,9 @@ export const lineCallback = onRequest(
         return;
       }
 
-      // Get base URL from request
-      const protocol = req.get("x-forwarded-proto") || "https";
-      const host = req.get("x-forwarded-host") || req.get("host") || "";
-      const base = `${protocol}://${host}`;
+      // Get Firebase Hosting URL (Next.js app)
+      const projectId = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || "study-schedule-app";
+      const base = `https://${projectId}.web.app`;
       logger.info("[LINE Callback] Base URL:", base);
 
       // Parse query parameters
@@ -167,9 +166,8 @@ export const lineCallback = onRequest(
       res.redirect(redirect.toString());
     } catch (error) {
       logger.error("[LINE Callback] Error:", error);
-      const protocol = req.get("x-forwarded-proto") || "https";
-      const host = req.get("x-forwarded-host") || req.get("host") || "";
-      const base = `${protocol}://${host}`;
+      const projectId = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || "study-schedule-app";
+      const base = `https://${projectId}.web.app`;
       res.redirect(`${base}/login?error=server`);
     }
   }
