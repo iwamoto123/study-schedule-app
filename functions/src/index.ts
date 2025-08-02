@@ -8,18 +8,181 @@
  */
 
 // functions/src/index.ts
-import * as functions from "firebase-functions";
+import { onRequest } from "firebase-functions/v2/https";
+import { logger } from "firebase-functions";
+import * as admin from "firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
+
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
+
+const adminAuth = admin.auth();
+const adminDb = admin.firestore();
 
 /**
  * Ping 用の簡単な HTTP 関数
  *   デプロイ後:  https://<project-id>.cloudfunctions.net/hello
  */
-export const hello = functions
-  .region("asia-northeast1")
-  .https.onRequest((req, res) => {
-    functions.logger.info("Hello function called!", { structuredData: true });
+export const hello = onRequest(
+  { region: "asia-northeast1" },
+  (req, res) => {
+    logger.info("Hello function called!", { structuredData: true });
     res.status(200).send("Hello from Cloud Functions!");
+  }
+);
+
+/**
+ * LINE OAuth callback handler
+ * デプロイ後: https://<region>-<project-id>.cloudfunctions.net/lineCallback
+ */
+export const lineCallback = onRequest(
+  { region: "asia-northeast1" },
+  async (req, res) => {
+    logger.info("[LINE Callback] Started", { structuredData: true });
+
+    try {
+      // Get configuration from environment variables
+      const lineChannelId = process.env.LINE_CHANNEL_ID;
+      const lineChannelSecret = process.env.LINE_CHANNEL_SECRET;
+      
+      // Check required configuration
+      if (!lineChannelId || !lineChannelSecret) {
+        logger.error("[LINE Callback] Missing LINE configuration");
+        res.status(500).json({ error: "Missing LINE configuration" });
+        return;
+      }
+
+      // Get base URL from request
+      const protocol = req.get("x-forwarded-proto") || "https";
+      const host = req.get("x-forwarded-host") || req.get("host") || "";
+      const base = `${protocol}://${host}`;
+      logger.info("[LINE Callback] Base URL:", base);
+
+      // Parse query parameters
+      const code = req.query.code as string;
+      const state = req.query.state as string;
+      
+      // Parse cookies
+      const cookies = parseCookies(req.get("cookie") || "");
+      const savedState = cookies["line_state"];
+      const codeVerifier = cookies["line_cv"] || "";
+
+      // Validate state
+      if (!code || state !== savedState) {
+        res.redirect(`${base}/login?error=state`);
+        return;
+      }
+
+      if (!codeVerifier) {
+        res.redirect(`${base}/login?error=pkce`);
+        return;
+      }
+
+      // Exchange code for token (PKCE/S256)
+      // Get project ID and region for constructing the callback URL
+      const projectId = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || "study-schedule-app";
+      const region = process.env.FUNCTION_REGION || "asia-northeast1";
+      const callbackUrl = `https://${region}-${projectId}.cloudfunctions.net/lineCallback`;
+      
+      const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: callbackUrl,
+          client_id: lineChannelId,
+          client_secret: lineChannelSecret,
+          code_verifier: codeVerifier,
+        }),
+      });
+
+      if (!tokenRes.ok) {
+        const errorText = await tokenRes.text();
+        logger.error("[LINE token]", errorText);
+        res.redirect(`${base}/login?error=token`);
+        return;
+      }
+
+      const { access_token, id_token } = (await tokenRes.json()) as {
+        access_token: string;
+        id_token: string;
+      };
+
+      // Extract LINE UID from id_token
+      const [, payloadB64] = id_token.split(".");
+      const payload = JSON.parse(
+        Buffer.from(payloadB64, "base64url").toString()
+      );
+      const uid: string = payload.sub;
+
+      // Get user profile
+      const profRes = await fetch("https://api.line.me/v2/profile", {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+
+      if (!profRes.ok) {
+        const errorText = await profRes.text();
+        logger.error("[LINE profile]", errorText);
+        res.redirect(`${base}/login?error=profile`);
+        return;
+      }
+
+      const profile = (await profRes.json()) as {
+        displayName: string;
+        pictureUrl: string;
+      };
+
+      // Upsert user to Firestore
+      await adminDb.doc(`users/${uid}`).set(
+        {
+          displayName: profile.displayName,
+          pictureUrl: profile.pictureUrl,
+          provider: "line",
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      // Create Firebase Custom Token
+      const customToken = await adminAuth.createCustomToken(uid);
+
+      // Redirect to frontend with token
+      const redirect = new URL("/materials", base);
+      redirect.searchParams.set("token", customToken);
+      logger.info(
+        "[LINE Callback] Success, redirecting to:",
+        redirect.toString()
+      );
+      res.redirect(redirect.toString());
+    } catch (error) {
+      logger.error("[LINE Callback] Error:", error);
+      const protocol = req.get("x-forwarded-proto") || "https";
+      const host = req.get("x-forwarded-host") || req.get("host") || "";
+      const base = `${protocol}://${host}`;
+      res.redirect(`${base}/login?error=server`);
+    }
+  }
+);
+
+/**
+ * Simple cookie parser
+ */
+function parseCookies(cookieHeader: string): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!cookieHeader) return cookies;
+
+  cookieHeader.split(";").forEach((cookie) => {
+    const [name, value] = cookie.trim().split("=");
+    if (name && value) {
+      cookies[name] = decodeURIComponent(value);
+    }
   });
+
+  return cookies;
+}
 
 
 // Start writing functions

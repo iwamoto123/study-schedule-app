@@ -36,7 +36,14 @@ export default function LineLoginButton({ className }: Props) {
     document.cookie = `line_state=${state}; Expires=${exp}; Path=/; SameSite=Lax; Secure`;
     document.cookie = `line_cv=${codeVerifier}; Expires=${exp}; Path=/; SameSite=Lax; Secure`;
 
-    const redirectUri = `${window.location.origin}/api/auth/line/callback`;
+    // Use Cloud Functions URL if configured, otherwise fallback to Next.js API route
+    const projectId = process.env.NEXT_PUBLIC_GCP_PROJECT_ID;
+    const region = process.env.NEXT_PUBLIC_GCP_REGION || 'asia-northeast1';
+    const useCloudFunctions = process.env.NEXT_PUBLIC_USE_CLOUD_FUNCTIONS === 'true';
+    
+    const redirectUri = useCloudFunctions && projectId
+      ? `https://${region}-${projectId}.cloudfunctions.net/lineCallback`
+      : `${window.location.origin}/api/auth/line/callback`;
     const authUrl =
       'https://access.line.me/oauth2/v2.1/authorize' +
       `?response_type=code` +

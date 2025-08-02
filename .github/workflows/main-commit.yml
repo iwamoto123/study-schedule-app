@@ -17,7 +17,10 @@ jobs:
       NEXT_PUBLIC_FIREBASE_CONFIG: ${{ secrets.NEXT_PUBLIC_FIREBASE_CONFIG }}
       NEXT_PUBLIC_GCP_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
       NEXT_PUBLIC_GCP_REGION: ${{ secrets.NEXT_PUBLIC_GCP_REGION }}
+      NEXT_PUBLIC_USE_CLOUD_FUNCTIONS: ${{ secrets.NEXT_PUBLIC_USE_CLOUD_FUNCTIONS || 'true' }}
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/service_account.json
+      LINE_CHANNEL_ID: ${{ secrets.LINE_CHANNEL_ID }}
+      LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
 
     steps:
       - name: Checkout code
@@ -48,3 +51,19 @@ jobs:
 
       - name: Deploy to Firebase Hosting
         run: firebase deploy --only hosting --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
+      
+      - name: Build Cloud Functions
+        working-directory: ./functions
+        run: |
+          npm install
+          npm run build
+      
+      - name: Set Cloud Functions Environment Variables
+        run: |
+          firebase functions:config:set \
+            line.channel_id="${{ secrets.LINE_CHANNEL_ID }}" \
+            line.channel_secret="${{ secrets.LINE_CHANNEL_SECRET }}" \
+            --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
+      
+      - name: Deploy Cloud Functions
+        run: firebase deploy --only functions --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
