@@ -66,5 +66,25 @@ jobs:
             line.channel_secret="${{ secrets.LINE_CHANNEL_SECRET }}" \
             --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
       
-      - name: Deploy Cloud Functions
-        run: firebase deploy --only functions --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
+      - name: Deploy Cloud Functions (with retry)
+        run: |
+          max_attempts=3
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts"
+            if firebase deploy --only functions --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}; then
+              echo "Functions deployment successful"
+              exit 0
+            else
+              echo "Functions deployment failed on attempt $attempt"
+              if [ $attempt -eq $max_attempts ]; then
+                echo "All attempts failed. Deploying without functions..."
+                firebase deploy --except functions --project=${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
+                echo "::warning::Cloud Functions deployment failed but hosting was deployed successfully"
+                exit 0
+              fi
+              echo "Waiting 60 seconds before retry..."
+              sleep 60
+              attempt=$((attempt + 1))
+            fi
+          done
