@@ -18,6 +18,7 @@ jobs:
       NEXT_PUBLIC_GCP_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_GCP_PROJECT_ID }}
       NEXT_PUBLIC_GCP_REGION: ${{ secrets.NEXT_PUBLIC_GCP_REGION }}
       NEXT_PUBLIC_USE_CLOUD_FUNCTIONS: ${{ secrets.NEXT_PUBLIC_USE_CLOUD_FUNCTIONS || 'true' }}
+      NEXT_PUBLIC_LINE_CHANNEL_ID: ${{ secrets.NEXT_PUBLIC_LINE_CHANNEL_ID }}
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/service_account.json
       LINE_CHANNEL_ID: ${{ secrets.LINE_CHANNEL_ID }}
       LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
@@ -46,7 +47,7 @@ jobs:
       - name: Debug Firebase Authentication
         run: |
           echo "GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
-          cat $GOOGLE_APPLICATION_CREDENTIALS
+          echo "Service account file exists: $(test -f $GOOGLE_APPLICATION_CREDENTIALS && echo 'yes' || echo 'no')"
           firebase projects:list
 
       - name: Deploy to Firebase Hosting
