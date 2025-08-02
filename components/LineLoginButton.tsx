@@ -22,6 +22,7 @@ export default function LineLoginButton({ className }: Props) {
 
     const clientId = process.env.NEXT_PUBLIC_LINE_CHANNEL_ID;
     if (!clientId) {
+      console.error('NEXT_PUBLIC_LINE_CHANNEL_ID is not defined');
       alert('LINE チャネル ID が設定されていません');
       setLoading(false);
       return;

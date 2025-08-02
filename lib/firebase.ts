@@ -28,9 +28,26 @@ import {
  *      NEXT_PUBLIC_FIREBASE_CONFIG='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}'
  *      NEXT_PUBLIC_EMULATOR=true
  * ------------------------------------------------------------------ */
-const firebaseConfig = JSON.parse(
-  process.env.NEXT_PUBLIC_FIREBASE_CONFIG as string,
-) as FirebaseOptions;
+let firebaseConfig: FirebaseOptions;
+
+try {
+  const configString = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
+  if (!configString) {
+    throw new Error('NEXT_PUBLIC_FIREBASE_CONFIG is not defined');
+  }
+  firebaseConfig = JSON.parse(configString) as FirebaseOptions;
+} catch (error) {
+  console.error('Failed to parse Firebase config:', error);
+  // デフォルト値を使用（ビルド時のエラーを回避）
+  firebaseConfig = {
+    apiKey: "",
+    authDomain: "",
+    projectId: "",
+    storageBucket: "",
+    messagingSenderId: "",
+    appId: "",
+  };
+}
 
 /* -------------------------------------------------------------------
  * 2. Firebase App 初期化（既にあれば再利用）

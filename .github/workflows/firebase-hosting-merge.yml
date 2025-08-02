@@ -20,3 +20,7 @@ jobs:
           projectId: study-schedule-app
         env:
           FIREBASE_CLI_EXPERIMENTS: webframeworks
+          NEXT_PUBLIC_FIREBASE_CONFIG: ${{ secrets.NEXT_PUBLIC_FIREBASE_CONFIG }}
+          NEXT_PUBLIC_GCP_PROJECT_ID: study-schedule-app
+          NEXT_PUBLIC_GCP_REGION: asia-northeast1
+          NEXT_PUBLIC_LINE_CHANNEL_ID: ${{ secrets.NEXT_PUBLIC_LINE_CHANNEL_ID }}
