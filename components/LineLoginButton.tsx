@@ -32,31 +32,12 @@ export default function LineLoginButton({ className }: Props) {
     const codeVerifier = randomString();
     const codeChallenge = await sha256ToBase64Url(codeVerifier);
 
-    // Store state and codeVerifier in Firestore for Cloud Functions to retrieve
-    try {
-      const { doc, setDoc } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-      
-      await setDoc(doc(db, 'line_auth_sessions', state), {
-        codeVerifier,
-        createdAt: new Date(),
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
-      });
-    } catch (error) {
-      console.error('Failed to store auth session:', error);
-      alert('認証情報の保存に失敗しました');
-      setLoading(false);
-      return;
-    }
+    // Store state and codeVerifier in sessionStorage
+    sessionStorage.setItem('line_state', state);
+    sessionStorage.setItem('line_cv', codeVerifier);
 
-    // Use Cloud Functions URL if configured, otherwise fallback to Next.js API route
-    const projectId = process.env.NEXT_PUBLIC_GCP_PROJECT_ID;
-    const region = process.env.NEXT_PUBLIC_GCP_REGION || 'asia-northeast1';
-    const useCloudFunctions = process.env.NEXT_PUBLIC_USE_CLOUD_FUNCTIONS === 'true';
-    
-    const redirectUri = useCloudFunctions && projectId
-      ? `https://${region}-${projectId}.cloudfunctions.net/lineCallback`
-      : `${window.location.origin}/api/auth/line/callback`;
+    // Use intermediate page to handle the callback
+    const redirectUri = `${window.location.origin}/auth/line/callback`;
     const authUrl =
       'https://access.line.me/oauth2/v2.1/authorize' +
       `?response_type=code` +

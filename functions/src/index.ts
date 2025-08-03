@@ -67,33 +67,20 @@ export const lineCallback = onRequest(
       const base = `https://${projectId}.web.app`;
       logger.info("[LINE Callback] Base URL:", base);
 
-      // Parse query parameters
-      const code = req.query.code as string;
-      const state = req.query.state as string;
+      // Handle both GET (redirect) and POST (from intermediate page) requests
+      let code: string, state: string, codeVerifier: string;
       
-      // Retrieve codeVerifier from Firestore
-      let codeVerifier = '';
-      try {
-        const sessionDoc = await adminDb.doc(`line_auth_sessions/${state}`).get();
-        if (sessionDoc.exists) {
-          const sessionData = sessionDoc.data();
-          codeVerifier = sessionData?.codeVerifier || '';
-          
-          // Check if session is expired
-          const expiresAt = sessionData?.expiresAt?.toDate();
-          if (expiresAt && expiresAt < new Date()) {
-            logger.error("[LINE Callback] Session expired");
-            res.redirect(`${base}/login?error=expired`);
-            return;
-          }
-          
-          // Delete the session document as it's no longer needed
-          await adminDb.doc(`line_auth_sessions/${state}`).delete();
-        } else {
-          logger.error("[LINE Callback] Session not found");
-        }
-      } catch (error) {
-        logger.error("[LINE Callback] Failed to retrieve session:", error);
+      if (req.method === 'POST') {
+        // POST request from intermediate page
+        const body = req.body;
+        code = body.code;
+        state = body.state;
+        codeVerifier = body.codeVerifier;
+      } else {
+        // GET request (direct redirect from LINE)
+        code = req.query.code as string;
+        state = req.query.state as string;
+        codeVerifier = ''; // Will be empty for direct redirects
       }
 
       // Debug logging
@@ -109,9 +96,15 @@ export const lineCallback = onRequest(
         logger.error("[LINE Callback] Parameter validation failed", {
           hasCode: !!code,
           hasState: !!state,
-          hasCodeVerifier: !!codeVerifier
+          hasCodeVerifier: !!codeVerifier,
+          method: req.method
         });
-        res.redirect(`${base}/login?error=state`);
+        
+        if (req.method === 'POST') {
+          res.status(400).json({ error: 'Invalid parameters' });
+        } else {
+          res.redirect(`${base}/login?error=state`);
+        }
         return;
       }
 
@@ -185,19 +178,31 @@ export const lineCallback = onRequest(
       // Create Firebase Custom Token
       const customToken = await adminAuth.createCustomToken(uid);
 
-      // Redirect to frontend with token
-      const redirect = new URL("/materials", base);
-      redirect.searchParams.set("token", customToken);
-      logger.info(
-        "[LINE Callback] Success, redirecting to:",
-        redirect.toString()
-      );
-      res.redirect(redirect.toString());
+      // Return token based on request method
+      if (req.method === 'POST') {
+        // Return JSON response for POST requests
+        logger.info("[LINE Callback] Success, returning token via JSON");
+        res.status(200).json({ customToken });
+      } else {
+        // Redirect for GET requests
+        const redirect = new URL("/materials", base);
+        redirect.searchParams.set("token", customToken);
+        logger.info(
+          "[LINE Callback] Success, redirecting to:",
+          redirect.toString()
+        );
+        res.redirect(redirect.toString());
+      }
     } catch (error) {
       logger.error("[LINE Callback] Error:", error);
       const projectId = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || "study-schedule-app";
       const errorBase = `https://${projectId}.web.app`;
-      res.redirect(`${errorBase}/login?error=server`);
+      
+      if (req.method === 'POST') {
+        res.status(500).json({ error: 'Server error' });
+      } else {
+        res.redirect(`${errorBase}/login?error=server`);
+      }
     }
   }
 );
