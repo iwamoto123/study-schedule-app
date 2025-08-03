@@ -32,10 +32,22 @@ export default function LineLoginButton({ className }: Props) {
     const codeVerifier = randomString();
     const codeChallenge = await sha256ToBase64Url(codeVerifier);
 
-    // Store state and codeVerifier in sessionStorage instead of cookies
-    // This allows us to retrieve them after redirect from LINE
-    sessionStorage.setItem('line_state', state);
-    sessionStorage.setItem('line_cv', codeVerifier);
+    // Store state and codeVerifier in Firestore for Cloud Functions to retrieve
+    try {
+      const { doc, setDoc } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      
+      await setDoc(doc(db, 'line_auth_sessions', state), {
+        codeVerifier,
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
+      });
+    } catch (error) {
+      console.error('Failed to store auth session:', error);
+      alert('認証情報の保存に失敗しました');
+      setLoading(false);
+      return;
+    }
 
     // Use Cloud Functions URL if configured, otherwise fallback to Next.js API route
     const projectId = process.env.NEXT_PUBLIC_GCP_PROJECT_ID;
@@ -50,7 +62,7 @@ export default function LineLoginButton({ className }: Props) {
       `?response_type=code` +
       `&client_id=${clientId}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&state=${state}|${codeVerifier}` +
+      `&state=${state}` +
       `&scope=profile%20openid` +
       `&code_challenge=${codeChallenge}` +
       `&code_challenge_method=S256`;

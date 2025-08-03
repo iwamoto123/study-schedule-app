@@ -69,18 +69,39 @@ export const lineCallback = onRequest(
 
       // Parse query parameters
       const code = req.query.code as string;
-      const stateParam = req.query.state as string;
+      const state = req.query.state as string;
       
-      // Extract state and codeVerifier from the state parameter
-      // Format: "state|codeVerifier"
-      const [state, codeVerifier] = stateParam ? stateParam.split('|') : ['', ''];
+      // Retrieve codeVerifier from Firestore
+      let codeVerifier = '';
+      try {
+        const sessionDoc = await adminDb.doc(`line_auth_sessions/${state}`).get();
+        if (sessionDoc.exists) {
+          const sessionData = sessionDoc.data();
+          codeVerifier = sessionData?.codeVerifier || '';
+          
+          // Check if session is expired
+          const expiresAt = sessionData?.expiresAt?.toDate();
+          if (expiresAt && expiresAt < new Date()) {
+            logger.error("[LINE Callback] Session expired");
+            res.redirect(`${base}/login?error=expired`);
+            return;
+          }
+          
+          // Delete the session document as it's no longer needed
+          await adminDb.doc(`line_auth_sessions/${state}`).delete();
+        } else {
+          logger.error("[LINE Callback] Session not found");
+        }
+      } catch (error) {
+        logger.error("[LINE Callback] Failed to retrieve session:", error);
+      }
 
       // Debug logging
       logger.info("[LINE Callback] Debug info", {
         hasCode: !!code,
         hasState: !!state,
         hasCodeVerifier: !!codeVerifier,
-        stateParam: stateParam
+        state: state
       });
 
       // Validate parameters
