@@ -88,8 +88,7 @@ export const lineCallback = onRequest(
       }
 
       // Exchange code for token (PKCE/S256)
-      // Get project ID and region for constructing the callback URL
-      const projectId = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || "study-schedule-app";
+      // Get region for constructing the callback URL
       const region = process.env.FUNCTION_REGION || "asia-northeast1";
       const callbackUrl = `https://${region}-${projectId}.cloudfunctions.net/lineCallback`;
       
