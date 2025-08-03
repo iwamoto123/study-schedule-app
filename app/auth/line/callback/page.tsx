@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-export default function LineCallbackPage() {
+function LineCallbackContent() {
   const [status, setStatus] = useState('処理中...');
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -91,5 +91,23 @@ export default function LineCallbackPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LineCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="bg-white p-8 rounded-lg shadow-lg text-center">
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">LINE認証</h1>
+          <p className="text-gray-600">読み込み中...</p>
+          <div className="mt-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    }>
+      <LineCallbackContent />
+    </Suspense>
   );
 }
