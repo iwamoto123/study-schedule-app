@@ -16,6 +16,7 @@ import { motion }       from 'framer-motion';
 
 import { auth }         from '@/lib/firebase';
 import LineLoginButton  from '@/components/LineLoginButton';
+import FirebaseTest     from '@/components/FirebaseTest';
 
 /* ------------------------------------------------------------------ */
 /*                           Component                                */
@@ -113,6 +114,9 @@ export default function LoginPage() {
           {isNew ? '既にアカウントをお持ちの方はこちら' : '新規登録はこちら'}
         </button>
       </motion.div>
+      
+      {/* Firebase接続テスト（開発用） */}
+      <FirebaseTest />
     </main>
   );
 }
