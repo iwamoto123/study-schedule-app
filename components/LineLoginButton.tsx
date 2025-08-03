@@ -27,10 +27,6 @@ export default function LineLoginButton({ className }: Props) {
       setLoading(false);
       return;
     }
-    
-    // Debug Firebase config
-    console.log('Firebase Config:', process.env.NEXT_PUBLIC_FIREBASE_CONFIG);
-    console.log('Emulator Mode:', process.env.NEXT_PUBLIC_EMULATOR);
 
     const state        = randomString();
     const codeVerifier = randomString();
@@ -41,20 +37,14 @@ export default function LineLoginButton({ className }: Props) {
       const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
       const { db } = await import('@/lib/firebase');
       
-      console.log('Attempting to write to Firestore with state:', state);
-      
       await setDoc(doc(db, 'line_auth_sessions', state), {
         codeVerifier,
         createdAt: serverTimestamp(),
         expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
       });
-      
-      console.log('Successfully stored auth session');
     } catch (error: any) {
       console.error('Failed to store auth session:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
-      alert(`認証情報の保存に失敗しました: ${error.message || 'Unknown error'}`);
+      alert('認証情報の保存に失敗しました');
       setLoading(false);
       return;
     }

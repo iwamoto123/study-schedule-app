@@ -13,7 +13,7 @@ import {
 } from 'firebase/app';
 
 import {
-  initializeFirestore,
+  getFirestore,
   connectFirestoreEmulator,
 } from 'firebase/firestore';
 
@@ -56,11 +56,9 @@ export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 /* -------------------------------------------------------------------
  * 3. Firestore 初期化
- *    - experimentalAutoDetectLongPolling: ネットワーク相性自動判定
+ *    - getFirestore (uses default database)
  * ------------------------------------------------------------------ */
-export const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
-});
+export const db = getFirestore(app);
 
 /* -------------------------------------------------------------------
  * 4. Authentication 初期化

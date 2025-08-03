@@ -72,7 +72,7 @@ export const lineCallback = onRequest(
 
       if (!code || !state) {
         logger.error("[LINE code/state missing]");
-        res.redirect(`${base}/login?error=state`);
+        res.redirect(`${base}/?error=state`);
         return;
       }
 
@@ -85,7 +85,7 @@ export const lineCallback = onRequest(
 
       if (!authSessionDoc.exists) {
         logger.error("[LINE state not found]", { state });
-        res.redirect(`${base}/login?error=state`);
+        res.redirect(`${base}/?error=state`);
         return;
       }
 
@@ -94,7 +94,7 @@ export const lineCallback = onRequest(
 
       if (!codeVerifier) {
         logger.error("[LINE codeVerifier not found]", { state });
-        res.redirect(`${base}/login?error=state`);
+        res.redirect(`${base}/?error=state`);
         return;
       }
 
@@ -122,7 +122,7 @@ export const lineCallback = onRequest(
       if (!tokenRes.ok) {
         const errorText = await tokenRes.text();
         logger.error("[LINE token]", errorText);
-        res.redirect(`${base}/login?error=token`);
+        res.redirect(`${base}/?error=token`);
         return;
       }
 
@@ -146,7 +146,7 @@ export const lineCallback = onRequest(
       if (!profRes.ok) {
         const errorText = await profRes.text();
         logger.error("[LINE profile]", errorText);
-        res.redirect(`${base}/login?error=profile`);
+        res.redirect(`${base}/?error=profile`);
         return;
       }
 
@@ -192,7 +192,7 @@ export const lineCallback = onRequest(
       if (req.method === 'POST') {
         res.status(500).json({ error: 'Server error' });
       } else {
-        res.redirect(`${errorBase}/login?error=server`);
+        res.redirect(`${errorBase}/?error=server`);
       }
     }
   }
