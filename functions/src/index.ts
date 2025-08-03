@@ -67,48 +67,39 @@ export const lineCallback = onRequest(
       const base = `https://${projectId}.web.app`;
       logger.info("[LINE Callback] Base URL:", base);
 
-      // Handle both GET (redirect) and POST (from intermediate page) requests
-      let code: string, state: string, codeVerifier: string;
-      
-      if (req.method === 'POST') {
-        // POST request from intermediate page
-        const body = req.body;
-        code = body.code;
-        state = body.state;
-        codeVerifier = body.codeVerifier;
-      } else {
-        // GET request (direct redirect from LINE)
-        code = req.query.code as string;
-        state = req.query.state as string;
-        codeVerifier = ''; // Will be empty for direct redirects
-      }
+      const code = req.query.code as string;
+      const state = req.query.state as string;
 
-      // Debug logging
-      logger.info("[LINE Callback] Debug info", {
-        hasCode: !!code,
-        hasState: !!state,
-        hasCodeVerifier: !!codeVerifier,
-        state: state
-      });
-
-      // Validate parameters
-      if (!code || !state || !codeVerifier) {
-        logger.error("[LINE Callback] Parameter validation failed", {
-          hasCode: !!code,
-          hasState: !!state,
-          hasCodeVerifier: !!codeVerifier,
-          method: req.method
-        });
-        
-        if (req.method === 'POST') {
-          res.status(400).json({ error: 'Invalid parameters' });
-        } else {
-          res.redirect(`${base}/login?error=state`);
-        }
+      if (!code || !state) {
+        logger.error("[LINE code/state missing]");
+        res.redirect(`${base}/login?error=state`);
         return;
       }
 
-      // codeVerifier validation is now included in the above check
+      // Retrieve codeVerifier from Firestore
+      const authSessionDoc = await admin
+        .firestore()
+        .collection("line_auth_sessions")
+        .doc(state)
+        .get();
+
+      if (!authSessionDoc.exists) {
+        logger.error("[LINE state not found]", { state });
+        res.redirect(`${base}/login?error=state`);
+        return;
+      }
+
+      const authSession = authSessionDoc.data();
+      const codeVerifier = authSession?.codeVerifier;
+
+      if (!codeVerifier) {
+        logger.error("[LINE codeVerifier not found]", { state });
+        res.redirect(`${base}/login?error=state`);
+        return;
+      }
+
+      // Delete the session after retrieving
+      await authSessionDoc.ref.delete();
 
       // Exchange code for token (PKCE/S256)
       // Get region for constructing the callback URL
