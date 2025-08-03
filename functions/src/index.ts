@@ -166,8 +166,8 @@ export const lineCallback = onRequest(
     } catch (error) {
       logger.error("[LINE Callback] Error:", error);
       const projectId = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || "study-schedule-app";
-      const base = `https://${projectId}.web.app`;
-      res.redirect(`${base}/login?error=server`);
+      const errorBase = `https://${projectId}.web.app`;
+      res.redirect(`${errorBase}/login?error=server`);
     }
   }
 );
