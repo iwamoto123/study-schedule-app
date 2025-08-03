@@ -29,10 +29,16 @@ export default function TabsLayout({
 
     // サインインしてからクエリを除去し /materials に寄せる
     signInWithCustomToken(auth, token)
-      .catch(console.error)
-      .finally(() => {
+      .then(() => {
+        console.log('[Auth] Successfully signed in with custom token');
         url.searchParams.delete('token');
         router.replace('/materials');
+      })
+      .catch((error) => {
+        console.error('[Auth] Failed to sign in with custom token:', error);
+        // エラー時はログインページに戻す
+        alert('認証エラーが発生しました。もう一度ログインしてください。');
+        router.replace('/login');
       });
   }, [router]);
 

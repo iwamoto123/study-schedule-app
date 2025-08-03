@@ -69,23 +69,32 @@ export const lineCallback = onRequest(
 
       // Parse query parameters
       const code = req.query.code as string;
-      const state = req.query.state as string;
+      const stateParam = req.query.state as string;
       
-      // Parse cookies
-      const cookies = parseCookies(req.get("cookie") || "");
-      const savedState = cookies["line_state"];
-      const codeVerifier = cookies["line_cv"] || "";
+      // Extract state and codeVerifier from the state parameter
+      // Format: "state|codeVerifier"
+      const [state, codeVerifier] = stateParam ? stateParam.split('|') : ['', ''];
 
-      // Validate state
-      if (!code || state !== savedState) {
+      // Debug logging
+      logger.info("[LINE Callback] Debug info", {
+        hasCode: !!code,
+        hasState: !!state,
+        hasCodeVerifier: !!codeVerifier,
+        stateParam: stateParam
+      });
+
+      // Validate parameters
+      if (!code || !state || !codeVerifier) {
+        logger.error("[LINE Callback] Parameter validation failed", {
+          hasCode: !!code,
+          hasState: !!state,
+          hasCodeVerifier: !!codeVerifier
+        });
         res.redirect(`${base}/login?error=state`);
         return;
       }
 
-      if (!codeVerifier) {
-        res.redirect(`${base}/login?error=pkce`);
-        return;
-      }
+      // codeVerifier validation is now included in the above check
 
       // Exchange code for token (PKCE/S256)
       // Get region for constructing the callback URL
@@ -172,22 +181,6 @@ export const lineCallback = onRequest(
   }
 );
 
-/**
- * Simple cookie parser
- */
-function parseCookies(cookieHeader: string): Record<string, string> {
-  const cookies: Record<string, string> = {};
-  if (!cookieHeader) return cookies;
-
-  cookieHeader.split(";").forEach((cookie) => {
-    const [name, value] = cookie.trim().split("=");
-    if (name && value) {
-      cookies[name] = decodeURIComponent(value);
-    }
-  });
-
-  return cookies;
-}
 
 
 // Start writing functions

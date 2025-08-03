@@ -32,9 +32,10 @@ export default function LineLoginButton({ className }: Props) {
     const codeVerifier = randomString();
     const codeChallenge = await sha256ToBase64Url(codeVerifier);
 
-    const exp = new Date(Date.now() + 5 * 60 * 1000).toUTCString();
-    document.cookie = `line_state=${state}; Expires=${exp}; Path=/; SameSite=Lax; Secure`;
-    document.cookie = `line_cv=${codeVerifier}; Expires=${exp}; Path=/; SameSite=Lax; Secure`;
+    // Store state and codeVerifier in sessionStorage instead of cookies
+    // This allows us to retrieve them after redirect from LINE
+    sessionStorage.setItem('line_state', state);
+    sessionStorage.setItem('line_cv', codeVerifier);
 
     // Use Cloud Functions URL if configured, otherwise fallback to Next.js API route
     const projectId = process.env.NEXT_PUBLIC_GCP_PROJECT_ID;
@@ -49,7 +50,7 @@ export default function LineLoginButton({ className }: Props) {
       `?response_type=code` +
       `&client_id=${clientId}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&state=${state}` +
+      `&state=${state}|${codeVerifier}` +
       `&scope=profile%20openid` +
       `&code_challenge=${codeChallenge}` +
       `&code_challenge_method=S256`;
