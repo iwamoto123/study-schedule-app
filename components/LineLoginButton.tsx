@@ -42,7 +42,7 @@ export default function LineLoginButton({ className }: Props) {
         createdAt: serverTimestamp(),
         expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to store auth session:', error);
       alert('認証情報の保存に失敗しました');
       setLoading(false);
