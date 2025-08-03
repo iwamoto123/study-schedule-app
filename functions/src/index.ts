@@ -55,6 +55,9 @@ export const lineCallback = onRequest(
       const channelId = lineChannelId.value();
       const channelSecret = lineChannelSecret.value();
       
+      logger.info("[LINE Callback] Channel ID:", channelId ? `${channelId.substring(0, 6)}...` : 'undefined');
+      logger.info("[LINE Callback] Channel Secret:", channelSecret ? 'defined' : 'undefined');
+      
       // Check required configuration
       if (!channelId || !channelSecret) {
         logger.error("[LINE Callback] Missing LINE configuration");
