@@ -2,16 +2,15 @@
 'use client';
 
 import { useState } from 'react';
-import classNames from 'classnames';           // ★ 追加（Tailwind 併用で便利）
+import classNames from 'classnames';
+import { LineAuthClient } from '@aid-on/auth-providers';
 
-/* ------------------------------------------------------------
- * LINE Login へリダイレクトするボタン
- *   - PKCE (S256) 対応
- *   - state / code_verifier を Cookie に保存
- *   - 外部から className を上書き出来るよう対応
- * ---------------------------------------------------------- */
+/**
+ * LINE Login Button Component
+ * Using @aid-on/auth-providers for secure OAuth flow
+ */
 interface Props {
-  className?: string;        // ★ 追加
+  className?: string;
 }
 
 export default function LineLoginButton({ className }: Props) {
@@ -28,44 +27,54 @@ export default function LineLoginButton({ className }: Props) {
       return;
     }
 
-    const state        = randomString();
-    const codeVerifier = randomString();
-    const codeChallenge = await sha256ToBase64Url(codeVerifier);
+    // Initialize LINE Auth Client (client-side safe operations only)
+    const lineAuth = new LineAuthClient({
+      clientId,
+      clientSecret: '', // Not needed for authorization URL generation
+      redirectUri: '' // Will be set below
+    });
 
-    // Store state and codeVerifier in Firestore for Cloud Functions to retrieve
-    try {
-      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-      
-      await setDoc(doc(db, 'line_auth_sessions', state), {
-        codeVerifier,
-        createdAt: serverTimestamp(),
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
-      });
-    } catch (error: unknown) {
-      console.error('Failed to store auth session:', error);
-      alert('認証情報の保存に失敗しました');
-      setLoading(false);
-      return;
-    }
+    // Generate secure state for CSRF protection
+    const state = lineAuth.generateState();
 
-    // Use Cloud Functions URL
+    // For Firebase integration, store state in cookies for server-side verification
+    document.cookie = `line_state=${state}; path=/; max-age=600; samesite=lax`;
+
+    // Determine redirect URI based on environment
     const projectId = process.env.NEXT_PUBLIC_GCP_PROJECT_ID;
     const region = process.env.NEXT_PUBLIC_GCP_REGION || 'asia-northeast1';
     
-    const redirectUri = projectId
+    // Use Cloud Functions URL in production, local API route in development
+    const redirectUri = projectId && process.env.NODE_ENV === 'production'
       ? `https://${region}-${projectId}.cloudfunctions.net/lineCallback`
-      : `${window.location.origin}/auth/line/callback`;
-    const authUrl =
-      'https://access.line.me/oauth2/v2.1/authorize' +
-      `?response_type=code` +
-      `&client_id=${clientId}` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&state=${state}` +
-      `&scope=profile%20openid` +
-      `&code_challenge=${codeChallenge}` +
-      `&code_challenge_method=S256`;
+      : `${window.location.origin}/api/auth/line/callback`;
 
+    // Generate authorization URL with proper parameters
+    const authUrl = lineAuth.getAuthorizationUrl({
+      state,
+      scope: 'profile openid',
+      redirectUri,
+      // Optional: Add bot_prompt for LINE official account friendship
+      botPrompt: 'normal'
+    });
+
+    // Optional: Store state in Firestore for Cloud Functions (if needed)
+    if (projectId && process.env.NODE_ENV === 'production') {
+      try {
+        const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        
+        await setDoc(doc(db, 'line_auth_sessions', state), {
+          createdAt: serverTimestamp(),
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+        });
+      } catch (error: unknown) {
+        console.error('Failed to store auth session in Firestore:', error);
+        // Continue anyway - server-side will use cookies
+      }
+    }
+
+    // Redirect to LINE authorization page
     window.location.assign(authUrl);
   };
 
@@ -74,30 +83,22 @@ export default function LineLoginButton({ className }: Props) {
       onClick={handleClick}
       disabled={loading}
       className={classNames(
-        'flex w-full items-center justify-center gap-3 rounded-lg border p-3 font-medium ' +
-          'hover:bg-green-50 disabled:opacity-60 transition',
-        className,                  // ★ 呼び出し側の className をマージ
+        'flex w-full items-center justify-center gap-3 rounded-lg border p-3 font-medium',
+        'hover:bg-green-50 disabled:opacity-60 transition',
+        'border-green-500 text-green-700',
+        className
       )}
+      aria-label="Sign in with LINE"
     >
-      {/* LINE アイコン */}
+      {/* LINE Icon */}
       <svg viewBox="0 0 24 24" className="h-6 w-6" aria-hidden fill="#06C755">
         <path d="M2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10a9.96 9.96 0 0 1-4.477-1.06L4 22l1.097-3.934A9.959 9.959 0 0 1 2 12Z" />
         <path fill="#fff" d="M7.8 9.6h1.2v3.6H7.8V9.6Zm3 0h1.2v3.6h-1.2V9.6Zm5.4 0v3.6h-1.2l-1.8-2.4v2.4h-1.2V9.6h1.2l1.8 2.4V9.6h1.2Z" />
       </svg>
-      {loading ? 'リダイレクト中...' : 'LINEでログイン'}
+      
+      <span className="font-semibold">
+        {loading ? 'リダイレクト中...' : 'LINEでログイン'}
+      </span>
     </button>
   );
-}
-
-/* ---------------- util ---------------- */
-function randomString(len = 43) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  return Array.from(crypto.getRandomValues(new Uint8Array(len)))
-    .map(x => chars[x % chars.length])
-    .join('');
-}
-async function sha256ToBase64Url(data: string) {
-  const buf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(data));
-  const b64  = btoa(String.fromCharCode(...new Uint8Array(buf)));
-  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
