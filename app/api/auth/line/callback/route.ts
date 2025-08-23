@@ -35,11 +35,15 @@ const adminAuth = admin.apps.length > 0 ? admin.auth() : null;
 const adminDb = admin.apps.length > 0 ? admin.firestore() : null;
 
 /* ---------- LINE Auth Client initialization ---------- */
-const lineAuth = new LineAuthClient({
-  clientId: process.env.LINE_CHANNEL_ID!,
-  clientSecret: process.env.LINE_CHANNEL_SECRET!,
-  redirectUri: process.env.LINE_REDIRECT_URI || 'http://localhost:3000/api/auth/line/callback'
-});
+// Dynamic redirect URI based on environment
+function getRedirectUri(req: NextRequest): string {
+  if (process.env.LINE_REDIRECT_URI) {
+    return process.env.LINE_REDIRECT_URI;
+  }
+  const proto = req.headers.get('x-forwarded-proto') ?? 'http';
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+  return `${proto}://${host}/api/auth/line/callback`;
+}
 
 /**
  * GET /api/auth/line/callback?code=...&state=...
@@ -83,6 +87,13 @@ export async function GET(req: NextRequest) {
       console.error('[LINE Callback] Missing authorization code');
       return NextResponse.redirect(`${base}/login?error=code`);
     }
+    
+    // Initialize LINE Auth Client with dynamic redirect URI
+    const lineAuth = new LineAuthClient({
+      clientId: process.env.LINE_CHANNEL_ID!,
+      clientSecret: process.env.LINE_CHANNEL_SECRET!,
+      redirectUri: getRedirectUri(req)
+    });
     
     // Verify state for CSRF protection
     if (!lineAuth.verifyState(state || '', savedState || '')) {
