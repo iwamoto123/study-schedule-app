@@ -40,14 +40,19 @@ export default function LineLoginButton({ className }: Props) {
     // For Firebase integration, store state in cookies for server-side verification
     document.cookie = `line_state=${state}; path=/; max-age=600; samesite=lax`;
 
-    // Determine redirect URI based on environment
+    // Always use Cloud Functions URL for Firebase Hosting deployment
     const projectId = process.env.NEXT_PUBLIC_GCP_PROJECT_ID;
     const region = process.env.NEXT_PUBLIC_GCP_REGION || 'asia-northeast1';
     
-    // Use Cloud Functions URL in production, local API route in development
-    const redirectUri = projectId && process.env.NODE_ENV === 'production'
-      ? `https://${region}-${projectId}.cloudfunctions.net/lineCallback`
-      : `${window.location.origin}/api/auth/line/callback`;
+    if (!projectId) {
+      console.error('NEXT_PUBLIC_GCP_PROJECT_ID is not defined');
+      alert('プロジェクトIDが設定されていません');
+      setLoading(false);
+      return;
+    }
+    
+    // Cloud Functions URL
+    const redirectUri = `https://${region}-${projectId}.cloudfunctions.net/lineCallback`;
 
     // Generate authorization URL with proper parameters
     const authUrl = lineAuth.getAuthorizationUrl({
@@ -58,20 +63,20 @@ export default function LineLoginButton({ className }: Props) {
       botPrompt: 'normal'
     });
 
-    // Optional: Store state in Firestore for Cloud Functions (if needed)
-    if (projectId && process.env.NODE_ENV === 'production') {
-      try {
-        const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-        const { db } = await import('@/lib/firebase');
-        
-        await setDoc(doc(db, 'line_auth_sessions', state), {
-          createdAt: serverTimestamp(),
-          expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
-        });
-      } catch (error: unknown) {
-        console.error('Failed to store auth session in Firestore:', error);
-        // Continue anyway - server-side will use cookies
-      }
+    // Store state in Firestore for Cloud Functions to verify
+    try {
+      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('@/lib/firebase');
+      
+      await setDoc(doc(db, 'line_auth_sessions', state), {
+        createdAt: serverTimestamp(),
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+      });
+    } catch (error: unknown) {
+      console.error('Failed to store auth session in Firestore:', error);
+      alert('認証セッションの保存に失敗しました');
+      setLoading(false);
+      return;
     }
 
     // Redirect to LINE authorization page
