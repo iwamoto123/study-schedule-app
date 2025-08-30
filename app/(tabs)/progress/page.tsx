@@ -349,13 +349,25 @@ export default function ProgressPage() {
   /* materials 購読（uid 必須なので user が無い時はスキップ） */
   useEffect(() => {
     if (!user || authLoading) return;
+    
+    // デバッグ: 認証状態を確認
+    console.log('🔐 Auth Debug:', {
+      user: !!user,
+      uid: user?.uid,
+      authLoading,
+      accessToken: user?.accessToken ? 'exists' : 'missing'
+    });
 
+    const collectionPath = `users/${user.uid}/materials`;
+    console.log('📂 Accessing collection:', collectionPath);
+    
     const q = query(
       collection(db, 'users', user.uid, 'materials'),
       orderBy('createdAt', 'asc'),
     );
 
     return onSnapshot(q, snap => {
+      console.log('📋 Materials snapshot:', { size: snap.size, empty: snap.empty });
       const map: Record<string, Material> = {};
       snap.forEach(docSnap => {
         const data = docSnap.data() as FirestoreMat;
@@ -364,6 +376,8 @@ export default function ProgressPage() {
         map[m.id]   = m;
       });
       setMaterials(map);
+    }, error => {
+      console.error('❌ Materials error:', error);
     });
   }, [user, authLoading]);
 
