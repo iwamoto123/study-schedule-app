@@ -1,4 +1,4 @@
-///app/components/BottomNav.tsx
+// components/BottomNav.tsx
 'use client';
 
 import Link from 'next/link';
@@ -19,10 +19,12 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t bg-white shadow-sm">
-      {/* ------ 追加: PC では幅を制限して中央寄せ ------ */}
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 border-t bg-white pb-[env(safe-area-inset-bottom)]"
+    >
+      {/* ナビ本体の高さ（約4.5rem） */}
       <div className="mx-auto w-full max-w-2xl">
-        <ul className="grid grid-cols-3">
+        <ul className="grid grid-cols-3 h-[4.5rem] items-center">
           {tabs.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
@@ -32,15 +34,9 @@ export default function BottomNav() {
                   className="flex flex-col items-center gap-0.5 py-2 text-xs"
                 >
                   <Icon
-                    className={`h-6 w-6 ${
-                      active ? 'text-indigo-600' : 'text-gray-400'
-                    }`}
+                    className={`h-6 w-6 ${active ? 'text-indigo-600' : 'text-gray-400'}`}
                   />
-                  <span
-                    className={`${
-                      active ? 'text-indigo-600 font-semibold' : 'text-gray-500'
-                    }`}
-                  >
+                  <span className={active ? 'text-indigo-600 font-semibold' : 'text-gray-500'}>
                     {label}
                   </span>
                 </Link>
@@ -49,7 +45,6 @@ export default function BottomNav() {
           })}
         </ul>
       </div>
-      {/* ------------------------------------------------ */}
     </nav>
   );
 }
