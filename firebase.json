@@ -1,6 +1,11 @@
 {
-  "firestore": {
-    "rules": "firestore.rules"
+  "firestore":  {
+    "databases": [
+      {
+        "name": "(default)",
+        "rules": "firestore.rules"
+      }
+    ]
   },
   "emulators": {
     "firestore": {

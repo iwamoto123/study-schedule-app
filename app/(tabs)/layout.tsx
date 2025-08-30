@@ -1,3 +1,4 @@
+// app/layout.tsx
 'use client';
 
 import { useEffect } from 'react';
@@ -8,26 +9,21 @@ import { auth } from '@/lib/firebase';
 import AuthWrapper from '@/components/AuthWrapper';
 import BottomNav   from '@/components/BottomNav';
 
+
 /* ------------------------------------------------------------
  * TabsLayout
- * - ルート /(tabs)/~~~ 配下の各ページを <AuthWrapper> で保護
- * - LINE 認証から戻る際 ?token=... が付与されるので
- *   CustomToken サインインして /materials へリダイレクト
+ * - /(tabs)/~~~ 配下の各ページを <AuthWrapper> で保護
+ * - ?token=... で戻るケースに対応（現状維持）
  * ----------------------------------------------------------- */
-export default function TabsLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function TabsLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
-  /* ---------- CustomToken → Firebase Auth ---------- */
+  /* ---------- CustomToken → Firebase Auth（現状維持） ---------- */
   useEffect(() => {
     const url   = new URL(window.location.href);
     const token = url.searchParams.get('token');
     if (!token) return;
 
-    // サインインしてからクエリを除去し /materials に寄せる
     signInWithCustomToken(auth, token)
       .then(() => {
         console.log('[Auth] Successfully signed in with custom token');
@@ -36,7 +32,6 @@ export default function TabsLayout({
       })
       .catch((error) => {
         console.error('[Auth] Failed to sign in with custom token:', error);
-        // エラー時はログインページに戻す
         alert('認証エラーが発生しました。もう一度ログインしてください。');
         router.replace('/login');
       });
@@ -44,10 +39,11 @@ export default function TabsLayout({
 
   return (
     <AuthWrapper>
-      <div className="pb-16">
-        {children}         {/* 各タブのページ本体 */}
+      {/* 画面下に「ナビ高さ+safe-area」ぶんの余白を常に確保 */}
+      <div className="min-h-screen pb-[calc(5rem+env(safe-area-inset-bottom))]">
+        {children}
       </div>
-      <BottomNav />        {/* 画面下部フッターナビ */}
+      <BottomNav />
     </AuthWrapper>
   );
 }
