@@ -1,82 +1,326 @@
-// functions/src/index.ts
+///functions/src/index.ts
+
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
-import { logger } from "firebase-functions";
 import * as admin from "firebase-admin";
-import { createLineAuthHandler } from "@aid-on/auth-providers";
+import * as crypto from "crypto";
 
 if (!admin.apps.length) admin.initializeApp();
 
-// Secrets（そのまま流用OK）
+const LINE_CHANNEL_ACCESS_TOKEN = defineSecret("LINE_CHANNEL_ACCESS_TOKEN");
+const LINE_LIFF_ID              = defineSecret("LINE_LIFF_ID");
+
+/** Secrets */
 const LINE_CHANNEL_ID     = defineSecret("LINE_CHANNEL_ID");
 const LINE_CHANNEL_SECRET = defineSecret("LINE_CHANNEL_SECRET");
 
-// Host/Callback をプロジェクトから導出
-const PROJECT_ID   = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || "study-schedule-app";
-const HOSTING_ORIGIN = `https://${PROJECT_ID}.web.app`;
-const CALLBACK_PATH  = "/auth/line/callback";
-const REGION = "asia-northeast1";
+/** 許可オリジン */
+const PROJECT_ID = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || "study-schedule-app";
+const ALLOWED_ORIGINS = [
+  `https://${PROJECT_ID}.web.app`,
+  `https://${PROJECT_ID}.firebaseapp.com`,
+];
 
-// CORS許可（本番ホストのみ）
-function setCors(res: any) {
-  res.set("Access-Control-Allow-Origin", HOSTING_ORIGIN);
+function setCors(req: any, res: any) {
+  const origin = req.headers.origin as string | undefined;
+  res.set("Access-Control-Allow-Origin", origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]);
   res.set("Vary", "Origin");
-  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type");
 }
 
-// ✅ Nextの /auth/line/callback から JSON POST を受け、customToken を返す
+function readSecretParam(param: any, envKeys: string[]) {
+  try {
+    const v = typeof param?.value === "function" ? param.value() : undefined;
+    return (v || envKeys.map(k => process.env[k]).find(Boolean)) as string | undefined;
+  } catch {
+    return envKeys.map(k => process.env[k]).find(Boolean) as string | undefined;
+  }
+}
+
+/** LINE: code→token を手動交換（client_secret_post 方式） */
+async function exchangeLineToken(args: {
+  code: string;
+  redirectUri: string;
+  clientId: string;
+  clientSecret: string;
+}) {
+  const { code, redirectUri, clientId, clientSecret } = args;
+
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: redirectUri,
+    client_id: clientId,          // ← 明示的に本文へ
+    client_secret: clientSecret,  // ← 明示的に本文へ
+  });
+
+  const resp = await fetch("https://api.line.me/oauth2/v2.1/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`token_exchange_failed ${resp.status} ${text}`);
+  }
+  return (await resp.json()) as {
+    access_token: string;
+    id_token?: string;
+    refresh_token?: string;
+    expires_in: number;
+    token_type: string;
+    scope?: string;
+  };
+}
+
+/** プロフィール取得（userId を得る） */
+async function fetchLineProfile(accessToken: string) {
+  const resp = await fetch("https://api.line.me/v2/profile", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`profile_failed ${resp.status} ${text}`);
+  }
+  return (await resp.json()) as { userId: string; displayName: string; pictureUrl?: string };
+}
+
+/** フロント（/auth/line/callback）から { code, state, expectedState } を POST */
 export const lineCallback = onRequest(
-  { region: REGION, secrets: [LINE_CHANNEL_ID, LINE_CHANNEL_SECRET] },
+  { region: "asia-northeast1", secrets: [LINE_CHANNEL_ID, LINE_CHANNEL_SECRET] },
   async (req, res) => {
-    setCors(res);
+    setCors(req, res);
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST")    { res.status(405).send("Method Not Allowed"); return; }
 
     try {
-      const channelId     = LINE_CHANNEL_ID.value();
-      const channelSecret = LINE_CHANNEL_SECRET.value();
-      if (!channelId || !channelSecret) {
-        logger.error("Missing LINE secrets");
-        res.status(500).json({ error: "missing_line_config" });
+      // Secret を取得して余分な空白を除去（← ここ重要）
+      const rawId  = readSecretParam(LINE_CHANNEL_ID,     ["LINE_CHANNEL_ID","LINE_CLIENT_ID"]);
+      const rawSec = readSecretParam(LINE_CHANNEL_SECRET, ["LINE_CHANNEL_SECRET","LINE_CLIENT_SECRET"]);
+      const clientId     = (rawId  ?? "").trim();
+      const clientSecret = (rawSec ?? "").trim();
+
+      console.info("lineCallback cfg " + JSON.stringify({
+        clientId_len: clientId.length,
+        clientSecret_len: clientSecret.length,
+      }));
+      if (!clientId || !clientSecret) {
+        res.status(500).type("text/plain; charset=utf-8").send("missing_line_config");
         return;
       }
 
-      // Next 側から受け取る
       const { code, state, expectedState } = (req.body || {}) as {
         code?: string; state?: string; expectedState?: string;
       };
       if (!code || !state || !expectedState) {
-        res.status(400).json({ error: "bad_params" }); return;
+        res.status(400).json({ error: "bad_params" });
+        return;
       }
 
-      // 新パッケージのサーバ側ハンドラで処理（state検証＋トークン交換＋ユーザー取得）
-      const handler = createLineAuthHandler({
-        clientId: channelId,
-        clientSecret: channelSecret,
-        redirectUri: `${HOSTING_ORIGIN}${CALLBACK_PATH}`, // ← LINEに登録したURLと完全一致
-      });
+      // 呼び出し元 Origin に合わせて redirectUri を厳密一致
+      const origin = (() => {
+        const o = req.headers.origin as string | undefined;
+        return o && ALLOWED_ORIGINS.includes(o) ? o : ALLOWED_ORIGINS[0];
+      })();
+      const redirectUri = `${origin}/auth/line/callback`;
 
-      const { user /*, tokens*/ } = await handler.handleCallback({ code, state, expectedState });
+      console.info("lineCallback redirect " + JSON.stringify({
+        origin, redirectUri, code_len: String(code).length, state_len: String(state).length
+      }));
 
-      // Firebase UID を作る（user.id or user.userId など、ライブラリの戻り値に合わせて）
-      const uid = `line:${(user as any).id ?? (user as any).userId}`;
+      // 交換 → プロフィール → カスタムトークン
+      const token = await exchangeLineToken({ code, redirectUri, clientId, clientSecret });
+      const prof  = await fetchLineProfile(token.access_token);
+
+      const uid = `line:${prof.userId}`;
       const customToken = await admin.auth().createCustomToken(uid, {
         provider: "line",
-        displayName: (user as any).displayName ?? "",
-        pictureUrl:  (user as any).pictureUrl  ?? "",
+        displayName: prof.displayName ?? "",
+        pictureUrl:  prof.pictureUrl  ?? "",
       });
-
-      // （任意）プロフィールをFirestoreに保存したい場合
-      // await admin.firestore().doc(`users/${uid}`).set(
-      //   { displayName: user.displayName ?? "", pictureUrl: user.pictureUrl ?? "", provider: "line", updatedAt: admin.firestore.FieldValue.serverTimestamp() },
-      //   { merge: true }
-      // );
 
       res.json({ customToken });
     } catch (err: any) {
-      logger.error("lineCallback error", err);
-      res.status(500).json({ error: "server_error", message: err?.message });
+      console.error("lineCallback error " + JSON.stringify({
+        message: err?.message, stack: err?.stack
+      }));
+      res.set("Content-Type", "text/plain; charset=utf-8");
+      res.status(500).send(`server_error: ${err?.message ?? ""}`);
+    }
+  }
+);
+
+/** 診断用 */
+export const lineDiag = onRequest(
+  { region: "asia-northeast1", secrets: [LINE_CHANNEL_ID, LINE_CHANNEL_SECRET] },
+  async (_req, res) => {
+    const id  = (readSecretParam(LINE_CHANNEL_ID,     ["LINE_CHANNEL_ID","LINE_CLIENT_ID"]) || "").trim();
+    const sec = (readSecretParam(LINE_CHANNEL_SECRET, ["LINE_CHANNEL_SECRET","LINE_CLIENT_SECRET"]) || "").trim();
+    res.json({ ok: true, clientId_len: id.length, clientSecret_len: sec.length, origins: ALLOWED_ORIGINS });
+  }
+);
+
+// 追加 Secret（Messaging API の Channel secret）
+const LINE_MESSAGING_CHANNEL_SECRET = defineSecret("LINE_MESSAGING_CHANNEL_SECRET");
+
+// 生ボディで署名検証
+function verifySignatureRaw(raw: Buffer, signature: string, channelSecret: string) {
+  const hmac = crypto.createHmac("sha256", channelSecret);
+  hmac.update(raw); // ★JSON.stringifyではなく“生のrawBody”
+  const digest = hmac.digest("base64");
+  return digest === signature;
+}
+
+export const lineWebhook = onRequest(
+  { region: "asia-northeast1", secrets: [LINE_MESSAGING_CHANNEL_SECRET] },
+  async (req, res) => {
+    if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+
+    // 署名検証（LINEは常にx-line-signatureを送ってくる）
+    const signature = req.headers["x-line-signature"] as string | undefined;
+    const secret = (readSecretParam(LINE_MESSAGING_CHANNEL_SECRET, ["LINE_MESSAGING_CHANNEL_SECRET"]) || "").trim();
+    const raw = (req as any).rawBody as Buffer; // ★ Cloud Functionsで利用可
+    if (!signature || !secret || !raw || !verifySignatureRaw(raw, signature, secret)) {
+      res.status(400).send("Bad signature");
+      return;
+    }
+
+    try {
+      const events = (req.body?.events ?? []) as any[];
+      for (const ev of events) {
+        console.info(`event type=${ev.type} source=${ev.source?.type}`);
+
+        if (ev.type === "join" && ev.source?.type === "group") {
+          const gid = ev.source.groupId as string;
+          await admin.firestore().doc(`line_groups/${gid}`).set({
+            joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+        // その他のイベントは特に処理しなくてもOK
+      }
+      // ★ 常に200を返す（Verifyはここが大事）
+      res.json({ ok: true });
+      
+    } catch (e:any) {
+      console.error("lineWebhook error", e?.message);
+      res.status(500).json({ error: "server_error" });
+    }
+  }
+);
+
+
+
+/**notifyProgressDaily：全グループに Flex を Push*/
+export const notifyProgressDaily = onRequest(
+  { region: "asia-northeast1", secrets: [LINE_CHANNEL_ACCESS_TOKEN, LINE_LIFF_ID] },
+  async (_req, res) => {
+    try {
+      const accessToken = (readSecretParam(LINE_CHANNEL_ACCESS_TOKEN, ["LINE_CHANNEL_ACCESS_TOKEN"]) || "").trim();
+      const liffId      = (readSecretParam(LINE_LIFF_ID, ["LINE_LIFF_ID"]) || "").trim();
+
+      const now   = new Date();
+      const yyyy  = now.getFullYear();
+      const mm    = String(now.getMonth()+1).padStart(2,"0");
+      const dd    = String(now.getDate()).padStart(2,"0");
+      const ymd   = `${yyyy}${mm}${dd}`;
+
+      const ver   = `${yyyy}${mm}${dd}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+      const base  = liffId
+      ? `https://liff.line.me/${liffId}`
+      : `https://${PROJECT_ID}.web.app`;
+       const uri   = `${base}?path=/progress&liff=1&date=${ymd}&v=${ver}`;
+      // const uri   = liffId
+      //   ? `https://liff.line.me/${liffId}?path=/progress&liff=1&date=${ymd}`
+      //   : `https://${PROJECT_ID}.web.app/progress?liff=1&date=${ymd}`;
+
+      const flex = {
+        type: "bubble",
+        size: "kilo",
+        header: { type:"box", layout:"vertical", contents:[
+          { type:"text", text:"今日の進捗入力", weight:"bold", size:"lg" },
+          { type:"text", text:`${yyyy}/${mm}/${dd}`, size:"sm", color:"#666666" }
+        ]},
+        body: { type:"box", layout:"vertical", contents:[
+          { type:"text", text:"タップしてそのまま入力できます", size:"sm", wrap:true }
+        ]},
+        footer: { type:"box", layout:"vertical", contents:[
+          { type:"button", style:"primary", action:{ type:"uri", label:"入力する", uri } }
+        ]}
+      };
+
+      const groupsSnap = await admin.firestore().collection("line_groups").get();
+      const groupIds   = groupsSnap.docs.map(d => d.id);
+
+      const push = async (to: string) => {
+        const body = {
+          to,
+          messages: [{ type:"flex", altText:"今日の進捗入力", contents: flex }]
+        };
+        const r = await fetch("https://api.line.me/v2/bot/message/push", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+        if (!r.ok) {
+          const t = await r.text().catch(()=> "");
+          console.error("push error", to, r.status, t);
+        }
+      };
+
+      await Promise.all(groupIds.map(push));
+      res.json({ ok: true, groups: groupIds.length });
+    } catch (e:any) {
+      console.error("notifyProgressDaily error", e?.message);
+      res.status(500).json({ error: "server_error" });
+    }
+  }
+);
+
+
+/**exchangeLiffToken：LIFFのIDトークン→Custom Token*/
+
+export const exchangeLiffToken = onRequest(
+  { region: "asia-northeast1", secrets: [LINE_CHANNEL_ID] },
+  async (req, res) => {
+    setCors(req, res);
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST")    { res.status(405).send("Method Not Allowed"); return; }
+
+    try {
+      const { idToken } = req.body || {};
+      if (!idToken) { res.status(400).json({ error: "bad_params" }); return; }
+
+      const clientId = (readSecretParam(LINE_CHANNEL_ID, ["LINE_CHANNEL_ID","LINE_CLIENT_ID"]) || "").trim();
+
+      // LINEのIDトークン検証
+      const params = new URLSearchParams({ id_token: idToken, client_id: clientId });
+      const vr = await fetch("https://api.line.me/oauth2/v2.1/verify", {
+        method: "POST",
+        headers: { "Content-Type":"application/x-www-form-urlencoded" },
+        body: params.toString(),
+      });
+      if (!vr.ok) {
+        const txt = await vr.text().catch(()=> "");
+        throw new Error(`id_token_verify_failed ${vr.status} ${txt}`);
+      }
+      const payload = await vr.json() as { sub: string, name?: string, picture?: string };
+
+      const uid = `line:${payload.sub}`;
+      const customToken = await admin.auth().createCustomToken(uid, {
+        provider: "line",
+        displayName: payload.name ?? "",
+        pictureUrl:  payload.picture ?? "",
+      });
+
+      res.json({ customToken });
+    } catch (e:any) {
+      console.error("exchangeLiffToken error", e?.message);
+      res.status(500).json({ error: "server_error", message: e?.message });
     }
   }
 );
