@@ -23,6 +23,23 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
     /** 認証状態を監視 */
     const unsubscribe = onAuthStateChanged(auth, user => {
       setChecking(false);
+      
+      // デバッグ: 認証状態を詳細にログ出力
+      console.log('🔐 AuthWrapper - User state changed:', {
+        user: !!user,
+        uid: user?.uid,
+        providerId: user?.providerData?.[0]?.providerId,
+        pathname
+      });
+      
+      // IDトークンを取得して詳細確認
+      if (user) {
+        user.getIdToken().then(token => {
+          console.log('🔑 ID Token exists:', !!token);
+        }).catch(err => {
+          console.error('❌ ID Token error:', err);
+        });
+      }
 
       // 未ログインで /login 以外のページならリダイレクト
       if (!user && !pathname.startsWith('/login')) {
