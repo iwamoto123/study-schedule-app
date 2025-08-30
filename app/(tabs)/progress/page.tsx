@@ -355,7 +355,7 @@ export default function ProgressPage() {
       user: !!user,
       uid: user?.uid,
       authLoading,
-      accessToken: user?.accessToken ? 'exists' : 'missing'
+      providerId: user?.providerData?.[0]?.providerId
     });
 
     const collectionPath = `users/${user.uid}/materials`;
