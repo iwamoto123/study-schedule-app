@@ -45,7 +45,7 @@ export default function MaterialsPage() {
 
   /* ---------- Firestore 購読 ---------- */
   useEffect(() => {
-    if (!user) return; // 未ログイン時は購読しない
+    if (!user || authLoading) return; // 未ログイン時は購読しない
 
     const q = query(
       collection(db, 'users', user.uid, 'materials'),
@@ -73,7 +73,7 @@ export default function MaterialsPage() {
     });
 
     return unsub;
-  }, [user]);
+  }, [user, authLoading]);
 
   /* ---------- 早期リターン ---------- */
   if (authLoading) return <p className="p-4">読み込み中...</p>;

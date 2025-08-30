@@ -348,7 +348,7 @@ export default function ProgressPage() {
 
   /* materials 購読（uid 必須なので user が無い時はスキップ） */
   useEffect(() => {
-    if (!user) return;
+    if (!user || authLoading) return;
 
     const q = query(
       collection(db, 'users', user.uid, 'materials'),
@@ -365,11 +365,11 @@ export default function ProgressPage() {
       });
       setMaterials(map);
     });
-  }, [user]);
+  }, [user, authLoading]);
 
   /* todos 購読 */
   useEffect(() => {
-    if (!user) return;
+    if (!user || authLoading) return;
 
     const col = collection(db, 'users', user.uid, 'todos', todayKey, 'items');
     return onSnapshot(col, snap => {
@@ -380,7 +380,7 @@ export default function ProgressPage() {
       });
       setTodos(map);
     });
-  }, [user, todayKey]);
+  }, [user, authLoading, todayKey]);
 
   /* カード生成 */
   const cards = useMemo(
