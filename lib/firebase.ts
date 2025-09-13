@@ -68,12 +68,26 @@ export const auth = getAuth(app);
 /* -------------------------------------------------------------------
  * 5. 開発時は Firestore / Auth エミュレータに接続
  * ------------------------------------------------------------------ */
-if (process.env.NEXT_PUBLIC_EMULATOR === 'true') {
-  /* Firestore → localhost:8080 */
-  connectFirestoreEmulator(db, 'localhost', 8080);
+// エミュレータ接続は明示的に開発環境のみ
+const shouldUseEmulator = process.env.NEXT_PUBLIC_EMULATOR === 'true' &&
+                         process.env.NODE_ENV === 'development' &&
+                         typeof window !== 'undefined' &&
+                         window.location.hostname === 'localhost';
 
-  /* Auth → localhost:9099 */
-  connectAuthEmulator(auth, 'http://localhost:9099', {
-    disableWarnings: true,
-  });
+if (shouldUseEmulator) {
+  try {
+    /* Firestore → localhost:8080 */
+    connectFirestoreEmulator(db, 'localhost', 8080);
+
+    /* Auth → localhost:9099 */
+    connectAuthEmulator(auth, 'http://localhost:9099', {
+      disableWarnings: true,
+    });
+
+    console.log('🔧 Connected to Firebase emulators');
+  } catch (error) {
+    console.log('⚠️ Emulator connection failed:', error);
+  }
+} else {
+  console.log('🔥 Connected to production Firebase');
 }
