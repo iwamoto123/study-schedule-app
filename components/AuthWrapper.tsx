@@ -20,11 +20,6 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    // 初回のみ認証状態を強制リセット
-    auth.signOut().catch(() => {}).then(() => {
-      console.log('🔄 Auth state forcefully reset');
-    });
-
     /** 認証状態を監視 */
     const unsubscribe = onAuthStateChanged(auth, user => {
       setChecking(false);
@@ -38,11 +33,10 @@ export default function AuthWrapper({ children }: { children: ReactNode }) {
         timestamp: new Date().toISOString()
       });
 
-      // IDトークンを取得して詳細確認
+      // IDトークン取得（詳細内容のログ出力は抑制）
       if (user) {
-        user.getIdToken(true).then(token => { // 強制リフレッシュ
-          console.log('🔑 Fresh ID Token obtained:', !!token);
-          console.log('🔑 Token preview:', token.substring(0, 50) + '...');
+        user.getIdToken(true).then(token => {
+          console.log('🔑 Fresh ID Token obtained:', Boolean(token));
         }).catch(err => {
           console.error('❌ ID Token error:', err);
           // トークンエラーの場合は強制ログアウト

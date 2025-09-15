@@ -35,13 +35,12 @@ export class FirestoreService {
       throw new Error('User not authenticated');
     }
 
-    // IDトークンを強制リフレッシュして取得
+    // IDトークンを強制リフレッシュして取得（値の中身はログ出力しない）
     try {
       const token = await user.getIdToken(true);
       const originalUID = user.uid;
 
-      console.log('🔑 FirestoreService - Fresh token obtained:', !!token);
-      console.log('🔑 Token preview:', token.substring(0, 50) + '...');
+      console.log('🔑 FirestoreService - Fresh token obtained:', Boolean(token));
       console.log('🔑 Original User UID:', originalUID);
 
       // UID安全性チェック
@@ -66,22 +65,7 @@ export class FirestoreService {
         }
       });
 
-      // トークンペイロードの確認
-      try {
-        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-        console.log('🔑 Token payload:', {
-          iss: tokenPayload.iss,
-          aud: tokenPayload.aud,
-          auth_time: tokenPayload.auth_time,
-          user_id: tokenPayload.user_id,
-          sub: tokenPayload.sub,
-          iat: tokenPayload.iat,
-          exp: tokenPayload.exp,
-          firebase: tokenPayload.firebase
-        });
-      } catch (e) {
-        console.log('🔑 Could not parse token payload:', e);
-      }
+      // セキュリティのためトークンペイロードはログに出さない
 
       // エンコードされたUIDを返す（Firestoreパス用）
       return encodedUID || originalUID;
