@@ -90,3 +90,12 @@ if (shouldUseEmulator) {
 } else {
   console.log('🔥 Connected to production Firebase');
 }
+
+// Dev helper: check projectId consistency
+if (process.env.NODE_ENV !== 'production') {
+  const cfgProject = (firebaseConfig as any).projectId as string | undefined;
+  const envProject = process.env.NEXT_PUBLIC_GCP_PROJECT_ID;
+  if (cfgProject && envProject && cfgProject !== envProject) {
+    console.warn('[Firebase] projectId mismatch:', { cfgProject, envProject });
+  }
+}
