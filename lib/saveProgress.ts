@@ -48,7 +48,8 @@ export async function saveProgress({
   const delta    = newSpan - prevSpan;
 
   const matRef = doc(db, 'users', uid, 'materials', materialId);
-  batch.update(matRef, { completed: increment(delta) });
+  // 存在有無に関わらず加算できるよう set(merge) を使用
+  batch.set(matRef, { completed: increment(delta) }, { merge: true });
 
   /* ---------- ③ logs/{YYYYMMDD} に累積完了数を書き込む ---------- */
   // 先に material を読んで "更新後" の completed を求める

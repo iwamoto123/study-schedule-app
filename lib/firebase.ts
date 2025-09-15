@@ -30,24 +30,21 @@ import {
  * ------------------------------------------------------------------ */
 let firebaseConfig: FirebaseOptions;
 
-try {
+(() => {
   const configString = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
   if (!configString) {
-    throw new Error('NEXT_PUBLIC_FIREBASE_CONFIG is not defined');
+    const msg = '[Firebase] NEXT_PUBLIC_FIREBASE_CONFIG is not defined. Set valid JSON string in .env.local.';
+    console.error(msg);
+    throw new Error(msg);
   }
-  firebaseConfig = JSON.parse(configString) as FirebaseOptions;
-} catch (error) {
-  console.error('Failed to parse Firebase config:', error);
-  // デフォルト値を使用（ビルド時のエラーを回避）
-  firebaseConfig = {
-    apiKey: "",
-    authDomain: "",
-    projectId: "",
-    storageBucket: "",
-    messagingSenderId: "",
-    appId: "",
-  };
-}
+  try {
+    firebaseConfig = JSON.parse(configString) as FirebaseOptions;
+  } catch (error) {
+    const msg = '[Firebase] Failed to parse NEXT_PUBLIC_FIREBASE_CONFIG. Ensure it is a valid JSON string.';
+    console.error(msg, error);
+    throw new Error(msg);
+  }
+})();
 
 /* -------------------------------------------------------------------
  * 2. Firebase App 初期化（既にあれば再利用）
@@ -69,10 +66,12 @@ export const auth = getAuth(app);
  * 5. 開発時は Firestore / Auth エミュレータに接続
  * ------------------------------------------------------------------ */
 // エミュレータ接続は明示的に開発環境のみ
-const shouldUseEmulator = process.env.NEXT_PUBLIC_EMULATOR === 'true' &&
-                         process.env.NODE_ENV === 'development' &&
-                         typeof window !== 'undefined' &&
-                         window.location.hostname === 'localhost';
+const isBrowser = typeof window !== 'undefined';
+const host = isBrowser ? window.location.hostname : '';
+const wantEmu = process.env.NEXT_PUBLIC_EMULATOR === 'true';
+const devHost = ['localhost', '127.0.0.1'].includes(host);
+const isDev = process.env.NODE_ENV === 'development';
+const shouldUseEmulator = wantEmu || (isBrowser && isDev && devHost);
 
 if (shouldUseEmulator) {
   try {

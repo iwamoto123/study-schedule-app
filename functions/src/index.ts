@@ -19,6 +19,8 @@ const PROJECT_ID = process.env.GCP_PROJECT_ID || process.env.GCLOUD_PROJECT || "
 const ALLOWED_ORIGINS = [
   `https://${PROJECT_ID}.web.app`,
   `https://${PROJECT_ID}.firebaseapp.com`,
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
 ];
 
 function setCors(req: any, res: any) {
@@ -538,4 +540,3 @@ export const exchangeLiffToken = onRequest(
 // //   logger.info("Hello logs!", {structuredData: true});
 // //   response.send("Hello from Firebase!");
 // // });
-
