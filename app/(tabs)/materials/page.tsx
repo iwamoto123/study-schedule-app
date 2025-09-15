@@ -15,6 +15,7 @@ import { db, auth }           from '@/lib/firebase';
 import { useAuthState }       from 'react-firebase-hooks/auth';
 import StudyMaterialCard      from '@/components/StudyMaterialCard';
 import MaterialForm           from '@/components/MaterialForm';
+import { MaterialServiceProvider } from '@/core/presentation/di/MaterialServiceProvider';
 import type { Material }      from '@/types/material';
 
 /* ------------------------------------------------------------
@@ -81,6 +82,7 @@ export default function MaterialsPage() {
 
   /* ---------- 画面 ---------- */
   return (
+    <MaterialServiceProvider>
     <main className="mx-auto max-w-md space-y-8 p-4">
       <h1 className="text-xl font-bold">新しい参考書を登録</h1>
 
@@ -135,5 +137,6 @@ export default function MaterialsPage() {
         ))}
       </section>
     </main>
+    </MaterialServiceProvider>
   );
 }

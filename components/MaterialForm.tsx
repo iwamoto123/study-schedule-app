@@ -5,13 +5,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { addDoc, collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { useForm, Controller } from 'react-hook-form';
 import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import RadioGroup from '@/components/RadioGroup';
 import InputSingle from '@/components/InputSingle';
 import { db } from '@/lib/firebase';
+import { useMaterialService } from '@/core/presentation/di/MaterialServiceProvider';
 import type { UnitType } from '@/components/StudyMaterialCard';
 import clsx from 'clsx';
 import * as React from 'react';
@@ -55,6 +56,7 @@ export default function MaterialForm({
   onSaved,
   onCancel,
 }: Props) {
+  const materialService = useMaterialService();
   const {
     register,
     control,
@@ -101,33 +103,9 @@ export default function MaterialForm({
 
     let materialId = docId;
     if (mode === 'create') {
-      const ref = await addDoc(collection(db, 'users', uid, 'materials'), {
-        ...data,
-        createdAt: serverTimestamp(),
-      });
-      materialId = ref.id;
+      materialId = await materialService.createMaterial({ uid, ...data });
     } else {
-      await setDoc(
-        doc(db, 'users', uid, 'materials', docId!),
-        { ...data },
-        { merge: true },
-      );
-    }
-
-    // todos にもコピー（新規のみ）
-    if (mode === 'create') {
-      const todayKey = dayjs().format('YYYYMMDD');
-      await setDoc(
-        doc(db, 'users', uid, 'todos', todayKey, 'items', materialId!),
-        {
-          title: data.title,
-          subject: data.subject,
-          unitType: data.unitType,
-          planCount: data.dailyPlan,
-          done: 0,
-        },
-        { merge: true },
-      );
+      await materialService.updateMaterial(uid, docId!, data);
     }
 
     onSaved();
