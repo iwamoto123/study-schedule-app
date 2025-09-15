@@ -20,7 +20,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 import { auth, db }      from '@/lib/firebase';
 import { calcTodayPlan } from '@/lib/calcTodayPlan';
-import { saveProgress }  from '@/lib/saveProgress';
+import { ProgressServiceProvider, useProgressService } from '@/core/presentation/di/ProgressServiceProvider';
 
 import ProgressSummary from '@/components/ProgressSummary';
 import TomorrowPlan    from '@/components/TomorrowPlan';
@@ -418,16 +418,16 @@ export default function ProgressPage() {
     prevEnd  : number | null;
   }) => {
     if (!user) return;
-
-    await saveProgress({
-      uid        : user.uid,
-      materialId : id,
-      newStart   : doneStart ?? 0,
-      newEnd     : doneEnd   ?? 0,
+    if (doneStart == null || doneEnd == null) return;
+    await progressService.saveProgress({
+      uid: user.uid,
+      materialId: id,
+      newStart: doneStart,
+      newEnd: doneEnd,
       prevStart,
       prevEnd,
     });
-  }, [user]);
+  }, [user, progressService]);
 
   /* 早期リターンは最終段階（JSX 部分の直前）で行う */
   if (authLoading) return <p className="p-4">読み込み中...</p>;
@@ -435,6 +435,7 @@ export default function ProgressPage() {
 
   /* 画面 */
   return (
+    <ProgressServiceProvider>
     <main className="mx-auto w-full max-w-none flex flex-col gap-4 p-4 sm:max-w-lg">
       <h1 className="mb-4 text-2xl font-bold">
         今日の進捗入力 {todayDisp}
@@ -458,5 +459,7 @@ export default function ProgressPage() {
         </p>
       )}
     </main>
+    </ProgressServiceProvider>
+  const progressService = useProgressService();
   );
 }
