@@ -2,32 +2,13 @@
 
 This project now uses `@aid-on/auth-providers` for LINE OAuth authentication integrated with Firebase.
 
-## Features (Nagare River Map)
+## Features
 
-```
-      UI                         Auth Flow                         Backend                  Firebase
- ──────────────┐        ────────────────────────────┐         ──────────────────┐        ─────────────────────
-  User         │        LineLoginButton             │         Cloud Functions    │        Auth / Firestore
-  clicks       │  ───▶  (generate state)           │         lineCallback       │
-               │        │  save state(session)     │         ┌──────────────────┤
-               │        │                           │         │ exchange LINE    │        signInWithCustomToken
-               │        └──────▶ Redirect to LINE ──┼──────▶  │ code→access token├──────▶  auth signed-in
-               │                                    │         │ create custom     │
-               │   Back from LINE with code/state   │         │ Firebase token    │        Firestore access OK
-               │  ◀─────── Callback (/auth/line/...)│         └──────────────────┘
-               │        │ verify state(session)     │
-               │        │ fetch customToken (POST)  │        CORS
-               │        └───────────────┬───────────┘     ──────────▶  allow {localhost, *.web.app}
-               │                        │
-               │                        ▼
-               │                 signInWithCustomToken
-
-  Support rivers:
-   • CSRF: state ───────────► compare(sessionStorage)
-   • Local/Prod: origin ────► CORS allowlist (localhost / *.web.app)
-   • Dev: emulator ─────────► Firestore/Auth emulator when enabled
-   • Types: TypeScript ─────► end-to-end type safety
-```
+- ✅ Secure LINE OAuth 2.0 flow
+- ✅ Firebase Authentication integration
+- ✅ CSRF protection with state validation
+- ✅ Support for both local development and Firebase Cloud Functions
+- ✅ TypeScript support with full type safety
 
 ## Setup Instructions
 
