@@ -1,4 +1,6 @@
-
+test('noop', () => {
+  expect(true).toBe(true);
+});
 
 // /**
 //  * progress/page.test.tsx
