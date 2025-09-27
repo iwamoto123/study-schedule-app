@@ -18,11 +18,15 @@
         "name": "next"
       }
     ],
-    "baseUrl": ".",   
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"],
-       "@types/*": ["types/*"]
-      
+      "@models/*": ["src/models/*"],
+      "@controllers/*": ["src/controllers/*"],
+      "@views/*": ["src/views/*"],
+      "@auth/*": ["src/auth/*"],
+      "@infrastructure/*": ["src/infrastructure/*"],
+      "@types/*": ["types/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "types", ".next/types/**/*.ts"],

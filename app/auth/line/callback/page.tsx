@@ -3,8 +3,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signInWithCustomToken } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { getLineCallbackHandler } from '@auth/authAdapter';
 
 function LineCallbackContent() {
   const router = useRouter();
@@ -13,75 +12,15 @@ function LineCallbackContent() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const handle = getLineCallbackHandler();
 
-    const run = async () => {
-      try {
-        const code = searchParams.get('code');
-        const state = searchParams.get('state');
+    if (!handle) {
+      setStatus('LINE 認証は現在利用できません。ログイン画面へ戻ります。');
+      router.replace('/login');
+      return () => undefined;
+    }
 
-        // 1) パラメータ確認
-        if (!code || !state) {
-          setStatus('認証パラメータが不正です');
-          setTimeout(() => router.push('/login?error=params'), 1200);
-          return;
-        }
-
-        // 2) CSRF: state 照合（フロントは sessionStorage を採用）
-        const expectedState = sessionStorage.getItem('line_state');
-        if (state !== expectedState) {
-          setStatus('認証状態が一致しません');
-          setTimeout(() => router.push('/login?error=state'), 1200);
-          return;
-        }
-
-        // 3) Functions へコードを渡して customToken を取得
-        const region = process.env.NEXT_PUBLIC_GCP_REGION || 'asia-northeast1';
-        const projectId = process.env.NEXT_PUBLIC_GCP_PROJECT_ID;
-        if (!projectId) {
-          setStatus('設定エラー（プロジェクトID 未設定）');
-          setTimeout(() => router.push('/login?error=config'), 1200);
-          return;
-        }
-
-        const url = `https://${region}-${projectId}.cloudfunctions.net/lineCallback`;
-        setStatus('トークン交換中...');
-
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, state, expectedState }),
-          signal: controller.signal,
-        });
-
-        // 4) エラー時は本文もログに出す（原因の特定に必須）
-        if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          // Network -> Console に出る
-          console.error('lineCallback response:', text);
-          throw new Error(`HTTP ${res.status} ${text}`);
-        }
-
-        // 5) customToken を受け取り Firebase にサインイン
-        type CallbackResponse = { customToken?: string };
-        const data: CallbackResponse = await res
-        .json().catch(() => ({} as CallbackResponse));
-        const customToken = data.customToken;
-        if (!customToken) throw new Error('No customToken');
-
-        setStatus('サインイン中...');
-        await signInWithCustomToken(auth, customToken);
-
-        // 6) 後片付け & 遷移
-        sessionStorage.removeItem('line_state'); // もう不要
-        router.replace('/materials');
-      } catch (e) {
-        console.error('LINE callback error:', e);
-        setStatus('認証に失敗しました');
-        setTimeout(() => router.push('/login?error=server'), 1400);
-      }
-    };
-
-    run();
+    handle({ searchParams, router, setStatus, signal: controller.signal });
 
     return () => controller.abort();
   }, [router, searchParams]);

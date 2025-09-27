@@ -1,18 +1,40 @@
-import { MaterialServiceImpl } from '@/core/application/services/MaterialService';
-import type { MaterialRepository } from '@/core/application/ports/MaterialRepository';
+import { MaterialServiceImpl } from '@/src/models/material/materialService';
+import type { MaterialRepository } from '@/src/models/material/materialRepository';
+import type { Material, MaterialDraft, MaterialUpdate } from '@/src/models/material/types';
 
 class InMemoryMaterialRepo implements MaterialRepository {
-  store: Record<string, any[]> = {};
-  async create(uid: string, data: any): Promise<string> {
+  store: Record<string, Material[]> = {};
+
+  async create(uid: string, data: MaterialDraft): Promise<string> {
     const id = 'm_' + Math.random().toString(36).slice(2, 8);
-    if (!this.store[uid]) this.store[uid] = [];
-    this.store[uid].push({ ...data, id, completed: 0 });
+    const next: Material = {
+      id,
+      title: data.title,
+      subject: data.subject,
+      unitType: data.unitType,
+      totalCount: data.totalCount,
+      dailyPlan: data.dailyPlan,
+      completed: 0,
+      startDate: data.startDate,
+      deadline: data.deadline,
+    };
+
+    this.store[uid] = [...(this.store[uid] ?? []), next];
     return id;
   }
-  async update(uid: string, id: string, data: any): Promise<void> {
-    const arr = this.store[uid] || [];
-    const idx = arr.findIndex((m) => m.id === id);
-    if (idx >= 0) arr[idx] = { ...arr[idx], ...data };
+
+  async update(uid: string, id: string, data: MaterialUpdate): Promise<void> {
+    this.store[uid] = (this.store[uid] ?? []).map(item =>
+      item.id === id ? { ...item, ...data } : item,
+    );
+  }
+
+  async delete(uid: string, id: string): Promise<void> {
+    this.store[uid] = (this.store[uid] ?? []).filter(item => item.id !== id);
+  }
+
+  listenAll(): () => void {
+    return () => {};
   }
 }
 
@@ -50,4 +72,3 @@ describe('MaterialService', () => {
     ).rejects.toThrow('invalid date range');
   });
 });
-
