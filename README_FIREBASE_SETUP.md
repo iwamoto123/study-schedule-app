@@ -1,4 +1,4 @@
-# Firebase設定ガイド
+# Firebase 設定ガイド
 
 ## 初期セットアップ
 
