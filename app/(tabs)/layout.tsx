@@ -3,11 +3,9 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithCustomToken } from 'firebase/auth';
-
-import { auth } from '@/lib/firebase';
 import AuthWrapper from '@/components/AuthWrapper';
 import BottomNav   from '@/components/BottomNav';
+import { getCustomTokenHandler } from '@auth/authAdapter';
 
 
 /* ------------------------------------------------------------
@@ -20,21 +18,16 @@ export default function TabsLayout({ children }: { children: React.ReactNode }) 
 
   /* ---------- CustomToken → Firebase Auth（現状維持） ---------- */
   useEffect(() => {
+    const handle = getCustomTokenHandler();
+    if (!handle) return;
+
     const url   = new URL(window.location.href);
     const token = url.searchParams.get('token');
     if (!token) return;
 
-    signInWithCustomToken(auth, token)
-      .then(() => {
-        console.log('[Auth] Successfully signed in with custom token');
-        url.searchParams.delete('token');
-        router.replace('/materials');
-      })
-      .catch((error) => {
-        console.error('[Auth] Failed to sign in with custom token:', error);
-        alert('認証エラーが発生しました。もう一度ログインしてください。');
-        router.replace('/login');
-      });
+    handle({ token, url, router }).catch(err => {
+      console.error('[Auth] Custom token handling failed:', err);
+    });
   }, [router]);
 
   return (

@@ -14,8 +14,11 @@ import {
 import { useRouter }    from 'next/navigation';
 import { motion }       from 'framer-motion';
 
-import { auth }         from '@/lib/firebase';
-import LineLoginButton  from '@/components/LineLoginButton';
+import { auth } from '@/lib/firebase';
+import {
+  federatedAuthAdapters,
+  passwordAuthEnabled,
+} from '@auth/authAdapter';
 
 /* ------------------------------------------------------------------ */
 /*                           Component                                */
@@ -26,6 +29,9 @@ export default function LoginPage() {
   const [password,  setPassword]  = useState('');
   const [isNew,     setIsNew]     = useState(false);
   const router                    = useRouter();
+
+  const hasFederatedAdapters = federatedAuthAdapters.length > 0;
+  const hasPasswordAuth = passwordAuthEnabled;
 
   /* ------- submit ------- */
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -63,55 +69,71 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* ------------ LINE ログイン ------------- */}
-        <LineLoginButton className="w-full scale-110 hover:scale-105 transition-transform duration-200" />
+        {/* ------------ プライマリアクション (LINE など) ------------- */}
+        {hasFederatedAdapters && (
+          <div className="space-y-3">
+            {federatedAuthAdapters.map(adapter => (
+              <div key={adapter.id}>
+                {adapter.renderPrimaryLoginAction?.({
+                  className: 'w-full scale-110 hover:scale-105 transition-transform duration-200',
+                  router,
+                })}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ------------ 区切り線 ------------- */}
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300" />
+        {hasFederatedAdapters && hasPasswordAuth && (
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white px-3 text-gray-500">
+                またはメールで{isNew ? '登録' : 'ログイン'}
+              </span>
+            </div>
           </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-white px-3 text-gray-500">
-              またはメールで{isNew ? '登録' : 'ログイン'}
-            </span>
-          </div>
-        </div>
+        )}
 
         {/* ------------ メール / パスワード ------------- */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="メールアドレス"
-            className="w-full rounded border p-3 focus:border-indigo-400 focus:outline-none"
-          />
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="パスワード"
-            className="w-full rounded border p-3 focus:border-indigo-400 focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="w-full rounded bg-indigo-600 py-3 font-medium text-white hover:bg-indigo-700 transition-colors"
-          >
-            {isNew ? '登録' : 'ログイン'}
-          </button>
-        </form>
+        {hasPasswordAuth && (
+          <>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="メールアドレス"
+                className="w-full rounded border p-3 focus:border-indigo-400 focus:outline-none"
+              />
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="パスワード"
+                className="w-full rounded border p-3 focus:border-indigo-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                className="w-full rounded bg-indigo-600 py-3 font-medium text-white hover:bg-indigo-700 transition-colors"
+              >
+                {isNew ? '登録' : 'ログイン'}
+              </button>
+            </form>
 
-        {/* ------------ トグル ------------- */}
-        <button
-          type="button"
-          onClick={() => setIsNew(p => !p)}
-          className="w-full text-center text-sm font-medium text-indigo-600 hover:underline"
-        >
-          {isNew ? '既にアカウントをお持ちの方はこちら' : '新規登録はこちら'}
-        </button>
+            <button
+              type="button"
+              onClick={() => setIsNew(p => !p)}
+              className="w-full text-center text-sm font-medium text-indigo-600 hover:underline"
+            >
+              {isNew ? '既にアカウントをお持ちの方はこちら' : '新規登録はこちら'}
+            </button>
+          </>
+        )}
       </motion.div>
     </main>
   );

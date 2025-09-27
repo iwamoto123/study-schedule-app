@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "test": "jest --runInBand",
-    "seed:admin": "ts-node scripts/admin-seed.ts"
+    "seed:admin": "ts-node scripts/admin-seed.ts",
+    "generate:config": "node scripts/generate-firebase-config.js",
+    "setup": "npm run generate:config && echo '✅ Setup complete!'"
   },
   "dependencies": {
     "@aid-on/auth-providers": "^0.1.0",

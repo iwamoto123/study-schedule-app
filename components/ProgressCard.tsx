@@ -8,7 +8,7 @@ import clsx        from 'clsx';
 
 import { clampNumber }   from '@/lib/validators';
 import InputSingle       from '@/components/InputSingle';
-import { Subject }       from '@/types/common';
+import type { Subject } from '@/src/models/shared/academics';
 import { subjectLabel, unitLabel }  from '@/components/StudyMaterialCard'; // 既存を再利用
 
 
