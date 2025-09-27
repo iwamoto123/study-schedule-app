@@ -16,8 +16,8 @@ import dayjs from 'dayjs';
 import React from 'react';
 
 import { unitLabel, subjectLabel } from '@/components/StudyMaterialCard';
-import type { Material } from '@/types/material';
-import { calcTodayPlan } from '@/lib/calcTodayPlan';
+import type { Material } from '@/src/models/material/types';
+import { calcTodayPlan } from '@/src/models/progress/calcTodayPlan';
 
 /* ---------- 型 ---------- */
 export type GraphDataPoint = {

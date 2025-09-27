@@ -1,24 +1,42 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import MaterialForm from '@/components/MaterialForm';
-import { MaterialServiceProvider } from '@/core/presentation/di/MaterialServiceProvider';
-import type { MaterialService } from '@/core/application/services/MaterialService';
-
-class MockService implements MaterialService {
-  calls: any[] = [];
-  async createMaterial(input: any): Promise<string> { this.calls.push(['create', input]); return 'm1'; }
-  async updateMaterial(uid: string, id: string, data: any): Promise<void> { this.calls.push(['update', uid, id, data]); }
-}
 
 describe('MaterialForm', () => {
-  it('renders without crashing with DI service', async () => {
-    const svc = new MockService();
-    const onSaved = jest.fn();
+  it('submits form values through onSubmit callback', async () => {
+    const handleSubmit = jest.fn().mockResolvedValue(undefined);
+
     render(
-      <MaterialServiceProvider service={svc as any}>
-        <MaterialForm uid="u1" mode="create" onSaved={onSaved} />
-      </MaterialServiceProvider>
+      <MaterialForm
+        onSubmit={handleSubmit}
+        initialValues={{
+          title: '既定値',
+          totalCount: 10,
+          dailyPlan: 1,
+          startDate: '2025-01-01',
+          deadline: '2025-01-10',
+          unitType: 'pages',
+          subject: 'math',
+        }}
+      />,
     );
-    expect(screen.getByLabelText('参考書名')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('参考書名'), {
+      target: { value: '数学の教科書' },
+    });
+    expect(screen.getByLabelText('参考書名')).toHaveValue('数学の教科書');
+
+    const totalCountInput = screen.getAllByRole('spinbutton')[0];
+    fireEvent.change(totalCountInput, { target: { value: '12' } });
+
+    const submitButton = screen.getByRole('button', { name: '保存' });
+    await waitFor(() => expect(submitButton).not.toBeDisabled());
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => expect(handleSubmit).toHaveBeenCalledTimes(1));
+    expect(handleSubmit.mock.calls[0][0]).toMatchObject({
+      totalCount: 12,
+      unitType: 'pages',
+    });
   });
 });

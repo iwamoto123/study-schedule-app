@@ -1,5 +1,5 @@
-import { ProgressServiceImpl } from '@/core/application/services/ProgressService';
-import type { ProgressRepository } from '@/core/application/ports/ProgressRepository';
+import { ProgressServiceImpl } from '@/src/models/progress/progressService';
+import type { ProgressRepository } from '@/src/models/progress/progressRepository';
 
 class InMemoryProgressRepo implements ProgressRepository {
   logs: any[] = [];
@@ -34,4 +34,3 @@ describe('ProgressService', () => {
     expect(typeof log[1].doneAfter).toBe('number');
   });
 });
-
