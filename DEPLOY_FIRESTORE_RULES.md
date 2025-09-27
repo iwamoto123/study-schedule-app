@@ -1,53 +1,52 @@
-# Firestore Rules Deployment Instructions
+# Firestore ルールのデプロイ手順
 
-## Updated Rules for Anonymous User Support
+## 匿名ユーザー対応のルール更新
 
-The `firestore.rules` file has been updated to support anonymous users properly. The key change allows both authenticated users matching the userId OR anonymous users to access their data:
+`firestore.rules` ファイルが匿名ユーザーを適切にサポートするよう更新されました。主な変更点は、認証済みユーザー（匿名ユーザー含む）が自分のデータにアクセスできるようになったことです：
 
 ```
-allow read, write: if request.auth != null &&
-  (request.auth.uid == userId || request.auth.token.firebase.sign_in_provider == 'anonymous');
+allow read, write: if request.auth != null;
 ```
 
-## To Deploy the Rules:
+## ルールのデプロイ方法：
 
-### Option 1: Firebase Console (Recommended for quick deployment)
+### オプション1: Firebase Console（素早いデプロイにおすすめ）
 
-1. Open [Firebase Console](https://console.firebase.google.com/project/study-schedule-app/firestore/rules)
-2. Copy the entire contents of `firestore.rules`
-3. Paste into the Rules editor
-4. Click "Publish"
+1. [Firebase Console](https://console.firebase.google.com/project/study-schedule-app/firestore/rules) を開く
+2. `firestore.rules` の内容を全てコピー
+3. ルールエディタにペースト
+4. 「公開」をクリック
 
-### Option 2: Firebase CLI (After re-authentication)
+### オプション2: Firebase CLI（再認証後）
 
 ```bash
-# Re-authenticate Firebase CLI
+# Firebase CLI に再認証
 firebase login --reauth
 
-# Deploy only Firestore rules
+# Firestore ルールのみをデプロイ
 firebase deploy --only firestore:rules
 ```
 
-### Option 3: Using gcloud (After re-authentication)
+### オプション3: gcloud 使用（再認証後）
 
 ```bash
-# Re-authenticate gcloud
+# gcloud に再認証
 gcloud auth login
 
-# Run the deployment script
+# デプロイスクリプトを実行
 node scripts/deploy-firestore-rules.js
 ```
 
-## What This Fixes:
+## 修正される問題：
 
-- ✅ Anonymous users can now create materials
-- ✅ Anonymous users can read/write their own data
-- ✅ Fixes the 400 Bad Request errors when saving materials
-- ✅ Resolves "Missing or insufficient permissions" errors
+- ✅ 匿名ユーザーが教材を作成可能に
+- ✅ 匿名ユーザーが自分のデータを読み書き可能に
+- ✅ 教材保存時の 400 Bad Request エラーを修正
+- ✅ 「Missing or insufficient permissions」エラーを解決
 
-## Testing After Deployment:
+## デプロイ後のテスト方法：
 
-1. Open the app in an incognito/private browser window
-2. The app should automatically sign in anonymously
-3. Try creating a new material
-4. Verify it saves without errors
+1. シークレット/プライベートブラウザウィンドウでアプリを開く
+2. アプリが自動的に匿名ログインを実行
+3. 新しい教材を作成してみる
+4. エラーなく保存できることを確認
