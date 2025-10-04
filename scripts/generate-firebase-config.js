@@ -17,7 +17,11 @@ const firebaseConfig = {
   projectId: "study-schedule-app",
   appId: "1:86208137541:web:ba3e09baff201ceaad962c",
   storageBucket: "study-schedule-app.firebasestorage.app",
+<<<<<<< HEAD
   apiKey: "AIzaSyBuI7Uv3bMm7aI-HwHC_FGfwp4qSmVMTGo",
+=======
+  apiKey: process.env.FIREBASE_API_KEY || "",  // 環境変数から取得
+>>>>>>> origin/fix/firebase-auth-and-firestore-rules
   authDomain: "study-schedule-app.firebaseapp.com",
   messagingSenderId: "86208137541",
   measurementId: "G-B8G6M3R9BW"
@@ -82,6 +86,10 @@ function updateEnvFile() {
   console.log('----------------------------------------');
   console.log(`Project ID: ${firebaseConfig.projectId}`);
   console.log(`Auth Domain: ${firebaseConfig.authDomain}`);
+<<<<<<< HEAD
+=======
+  console.log(`API Key: ${firebaseConfig.apiKey ? '[CONFIGURED]' : '[NOT SET - Please set FIREBASE_API_KEY env var]'}`);
+>>>>>>> origin/fix/firebase-auth-and-firestore-rules
   console.log(`Region: ${projectConfig.region}`);
   console.log(`Auth Providers: ${projectConfig.authProviders}`);
   console.log('----------------------------------------');
@@ -89,6 +97,15 @@ function updateEnvFile() {
 
 // メイン処理
 try {
+<<<<<<< HEAD
+=======
+  // 環境変数からAPI Keyを取得する場合のメッセージ
+  if (!process.env.FIREBASE_API_KEY) {
+    console.log('\n⚠️  FIREBASE_API_KEY environment variable is not set.');
+    console.log('   Using the API key from .env.local if it exists.');
+  }
+
+>>>>>>> origin/fix/firebase-auth-and-firestore-rules
   updateEnvFile();
   console.log('\n🎉 Firebase configuration generated successfully!');
   console.log('👉 Run "npm run dev" to start the application');
